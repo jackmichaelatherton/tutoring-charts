@@ -37,7 +37,7 @@ const models = {
   tenders: { path: '/tenders/', model: Tender }
 };
 
-// Sync endpoint (non-blocking)
+// Sync endpoint - without blocking the cron job
 router.get('/sync-all', async (req, res) => {
   res.json({ message: '🔁 Sync started in background...' });
 
@@ -53,6 +53,20 @@ router.get('/sync-all', async (req, res) => {
           let documentId = entry.id;
 
           // Fallback logic
+          if router.get('/sync-all', async (req, res) => {
+  res.json({ message: '🔁 Sync started in background.' });
+
+  setTimeout(async () => {
+    const results = {};
+
+    for (const [key, { path, model }] of Object.entries(models)) {
+      try {
+        const data = await fetchAllPages(path);
+
+        let count = 0;
+        for (const entry of data) {
+          let documentId = entry.id;
+
           if (!documentId) {
             let fallbackUrl = entry.url || (key === 'reports' && entry.appointment?.url);
             if (typeof fallbackUrl === 'string') {
@@ -70,7 +84,6 @@ router.get('/sync-all', async (req, res) => {
             continue;
           }
 
-          // Special parsing for reports
           if (key === 'reports' && Array.isArray(entry.extra_attrs)) {
             for (const attr of entry.extra_attrs) {
               if (attr.machine_name === 'client_report') {
@@ -106,8 +119,9 @@ router.get('/sync-all', async (req, res) => {
     );
 
     console.log('✅ Background sync complete', results);
-  }, 100); // Slight delay ensures res.json() finishes
+  }, 100);
 });
+
 
 
 router.get('/last-synced', async (req, res) => {
