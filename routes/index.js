@@ -37,71 +37,78 @@ const models = {
   tenders: { path: '/tenders/', model: Tender }
 };
 
-// Sync endpoint
+// Sync endpoint (non-blocking)
 router.get('/sync-all', async (req, res) => {
-  const results = {};
+  res.json({ message: '🔁 Sync started in background...' });
 
-  for (const [key, { path, model }] of Object.entries(models)) {
-    try {
-      const data = await fetchAllPages(path);
+  setTimeout(async () => {
+    const results = {};
 
-      let count = 0;
-      for (const entry of data) {
-        let documentId = entry.id;
+    for (const [key, { path, model }] of Object.entries(models)) {
+      try {
+        const data = await fetchAllPages(path);
 
-        // Fallback logic
-        if (!documentId) {
-          let fallbackUrl = entry.url || (key === 'reports' && entry.appointment?.url);
-          if (typeof fallbackUrl === 'string') {
-            const parts = fallbackUrl.split('/').filter(Boolean);
-            const maybeId = parts.at(-1);
-            if (!isNaN(parseInt(maybeId))) {
-              documentId = parseInt(maybeId);
-              entry.id = documentId;
+        let count = 0;
+        for (const entry of data) {
+          let documentId = entry.id;
+
+          // Fallback logic
+          if (!documentId) {
+            let fallbackUrl = entry.url || (key === 'reports' && entry.appointment?.url);
+            if (typeof fallbackUrl === 'string') {
+              const parts = fallbackUrl.split('/').filter(Boolean);
+              const maybeId = parts.at(-1);
+              if (!isNaN(parseInt(maybeId))) {
+                documentId = parseInt(maybeId);
+                entry.id = documentId;
+              }
             }
           }
-        }
 
-        if (!documentId) {
-          console.warn(`⚠️ Skipping invalid entry in ${key}:`, entry);
-          continue;
-        }
+          if (!documentId) {
+            console.warn(`⚠️ Skipping invalid entry in ${key}:`, entry);
+            continue;
+          }
 
-        if (key === 'reports' && Array.isArray(entry.extra_attrs)) {
-          for (const attr of entry.extra_attrs) {
-            if (attr.machine_name === 'client_report') {
-              entry.sessionReport = attr.value;
-            } else if (attr.machine_name.includes('attitude') || attr.machine_name.includes('engagement')) {
-              entry.attitudeRating = attr.value;
-            } else if (attr.machine_name.includes('progress')) {
-              entry.progressRating = attr.value;
+          // Special parsing for reports
+          if (key === 'reports' && Array.isArray(entry.extra_attrs)) {
+            for (const attr of entry.extra_attrs) {
+              if (attr.machine_name === 'client_report') {
+                entry.sessionReport = attr.value;
+              } else if (attr.machine_name.includes('attitude') || attr.machine_name.includes('engagement')) {
+                entry.attitudeRating = attr.value;
+              } else if (attr.machine_name.includes('progress')) {
+                entry.progressRating = attr.value;
+              }
             }
           }
+
+          await model.updateOne(
+            { id: documentId },
+            { $set: { ...entry, id: documentId } },
+            { upsert: true }
+          );
+
+          count++;
         }
 
-        await model.updateOne(
-          { id: documentId },
-          { $set: { ...entry, id: documentId } },
-          { upsert: true }
-        );
-
-        count++;
+        results[key] = `✅ Synced ${count} records`;
+      } catch (err) {
+        results[key] = `❌ Error: ${err.message}`;
+        console.error(`❌ Failed syncing ${key}:`, err.message);
       }
-
-      results[key] = `✅ Synced ${count} records`;
-    } catch (err) {
-      results[key] = `❌ Error: ${err.message}`;
     }
-  }
 
-  await Meta.updateOne(
-    { key: 'lastSynced' },
-    { $set: { value: new Date().toISOString() } },
-    { upsert: true }
-  );
+    await Meta.updateOne(
+      { key: 'lastSynced' },
+      { $set: { value: new Date().toISOString() } },
+      { upsert: true }
+    );
 
-  res.json(results);
+    console.log('✅ Background sync complete', results);
+  }, 100); // Slight delay ensures res.json() finishes
 });
+
 
 router.get('/last-synced', async (req, res) => {
   const Meta = require('../models/Meta');
