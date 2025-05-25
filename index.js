@@ -21,16 +21,16 @@ app.use('/api', require('./routes'));
 
 const syncUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/api/sync-all`;
 
-// Cron job to sync every 5 mins (change back to 3am for prod)
-// cron.schedule('0 3 * * *', async () => {
-cron.schedule('*/10 * * * *', async () => {
-  try {
-    const res = await axios.get(syncUrl);
-    console.log('✅ Sync complete:', res.data);
-  } catch (err) {
-    console.error('❌ Sync failed:', err.message);
-  }
-});
+// // Cron job to sync every 5 mins (change back to 3am for prod)
+// // cron.schedule('0 3 * * *', async () => {
+// cron.schedule('*/10 * * * *', async () => {
+//   try {
+//     const res = await axios.get(syncUrl);
+//     console.log('✅ Sync complete:', res.data);
+//   } catch (err) {
+//     console.error('❌ Sync failed:', err.message);
+//   }
+// });
 
 // Serve frontend only for non-API routes
 if (process.env.NODE_ENV === 'production') {
