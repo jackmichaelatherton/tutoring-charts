@@ -39,21 +39,6 @@ const models = {
 
 // Sync endpoint - without blocking the cron job
 router.get('/sync-all', async (req, res) => {
-  res.json({ message: '🔁 Sync started in background...' });
-
-  setTimeout(async () => {
-    const results = {};
-
-    for (const [key, { path, model }] of Object.entries(models)) {
-      try {
-        const data = await fetchAllPages(path);
-
-        let count = 0;
-        for (const entry of data) {
-          let documentId = entry.id;
-
-          // Fallback logic
-          if router.get('/sync-all', async (req, res) => {
   res.json({ message: '🔁 Sync started in background.' });
 
   setTimeout(async () => {
@@ -121,7 +106,6 @@ router.get('/sync-all', async (req, res) => {
     console.log('✅ Background sync complete', results);
   }, 100);
 });
-
 
 
 router.get('/last-synced', async (req, res) => {
