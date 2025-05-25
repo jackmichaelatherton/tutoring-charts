@@ -18,11 +18,12 @@ app.use(cors());
 // API routes first
 app.use('/api', require('./routes'));
 
-// Cron job to sync every 5 mins (change back to 3am for prod)
-// cron.schedule('0 3 * * *', async () => {
+
 const syncUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/api/sync-all`;
 
-cron.schedule('*/5 * * * *', async () => {
+// Cron job to sync every 5 mins (change back to 3am for prod)
+// cron.schedule('0 3 * * *', async () => {
+cron.schedule('*/10 * * * *', async () => {
   try {
     const res = await axios.get(syncUrl);
     console.log('✅ Sync complete:', res.data);
