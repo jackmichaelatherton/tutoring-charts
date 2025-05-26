@@ -103,7 +103,7 @@ router.get('/sync-all', async (req, res) => {
       { upsert: true }
     );
 
-    console.log('✅ Background sync complete', results);
+    console.log('✅ Background sync complete');
   }, 100);
 });
 
