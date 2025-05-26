@@ -11,8 +11,14 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-import { Bar, Line } from 'react-chartjs-2';
+
 import { parse, format, isAfter, isBefore, subMonths } from 'date-fns';
+
+import TotalIncomeChart from './components/charts/TotalIncomeChart';
+import CommissionChart from './components/charts/CommissionChart';
+import AdHocChart from './components/charts/AdHocChart';
+import LessonHoursChart from './components/charts/LessonHoursChart';
+import AvgCommissionRateChart from './components/charts/AvgCommissionRateChart';
 
 ChartJS.register(
   CategoryScale,
@@ -49,46 +55,46 @@ const getColor = (status) => {
   return palette[status] || '#D1D5DB';
 };
 
-const createBarOptions = (title, valueFormatter = (val) => val, stacked = false) => ({
-  responsive: true,
-  plugins: {
-    legend: stacked
-      ? {
-          position: 'top',
-          labels: {
-            color: '#374151',
-            font: { size: 13 }
-          }
-        }
-      : { display: false },
-    tooltip: {
-      callbacks: {
-        label: (context) => valueFormatter(context.raw)
-      }
-    }
-  },
-  scales: {
-    y: {
-      beginAtZero: true,
-      ticks: {
-        color: '#4B5563',
-        callback: (val) => valueFormatter(val)
-      },
-      title: {
-        display: true,
-        text: title,
-        color: '#374151',
-        font: { size: 14 }
-      },
-      grid: { color: '#E5E7EB' }
-    },
-    x: {
-      stacked: true,
-      ticks: { color: '#4B5563' },
-      grid: { color: '#F3F4F6' }
-    }
-  }
-});
+// const createBarOptions = (title, valueFormatter = (val) => val, stacked = false) => ({
+//   responsive: true,
+//   plugins: {
+//     legend: stacked
+//       ? {
+//           position: 'top',
+//           labels: {
+//             color: '#374151',
+//             font: { size: 13 }
+//           }
+//         }
+//       : { display: false },
+//     tooltip: {
+//       callbacks: {
+//         label: (context) => valueFormatter(context.raw)
+//       }
+//     }
+//   },
+//   scales: {
+//     y: {
+//       beginAtZero: true,
+//       ticks: {
+//         color: '#4B5563',
+//         callback: (val) => valueFormatter(val)
+//       },
+//       title: {
+//         display: true,
+//         text: title,
+//         color: '#374151',
+//         font: { size: 14 }
+//       },
+//       grid: { color: '#E5E7EB' }
+//     },
+//     x: {
+//       stacked: true,
+//       ticks: { color: '#4B5563' },
+//       grid: { color: '#F3F4F6' }
+//     }
+//   }
+// });
 
 function App() {
   const [allStatuses, setAllStatuses] = useState([]);
@@ -96,10 +102,11 @@ function App() {
   const [months, setMonths] = useState([]);
   const [rawData, setRawData] = useState([]);
   const [commissionRateData, setCommissionRateData] = useState(null);
-  const [totalCommissionData, setTotalCommissionData] = useState(null);
   const [adHocData, setAdHocData] = useState(null);
   const [commissionData, setCommissionData] = useState(null);
   const [lastSynced, setLastSynced] = useState(null);
+  const [totalCommissionData, setTotalCommissionData] = useState(null);
+
 
   const today = new Date();
   const defaultEnd = format(today, 'yyyy-MM');
@@ -191,13 +198,32 @@ function App() {
 
   const validRange = startIdx >= 0 && endIdx >= 0 && endIdx >= startIdx;
 
-  // const paddedAdHocData = filteredMonths.map(m => {
-  //   const index = adHocData?.months?.indexOf(m);
-  //   return index >= 0 ? adHocData.data[index] : 0;
-  // });
 
   return (
     <div className="flex">
+      {/* Left Sidebar Menu */}
+      <aside className="w-64 p-4 bg-white shadow-lg fixed left-0 top-0 h-screen border-r border-gray-200 z-10">
+        <h3 className="text-lg font-semibold mb-4">Sections</h3>
+        <nav className="space-y-2">
+          {[
+            { label: 'Income', id: 'income' },
+            { label: 'Commission Breakdown', id: 'commission-breakdown' },
+          ].map(({ label, id }) => (
+            <button
+              key={id}
+              onClick={() => {
+                const el = document.getElementById(id);
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-left w-full text-blue-600 hover:underline text-sm"
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Right Filter Sidebar */}
       <aside className="w-64 p-4 bg-white shadow-lg fixed right-0 top-0 h-screen border-l border-gray-200">
         <h3 className="text-lg font-semibold mb-4">Filters</h3>
         <div className="space-y-2 mb-6">
@@ -238,153 +264,76 @@ function App() {
             />
           </label>
         </div>
+
         {lastSynced && (
           <p className="text-xs text-gray-400 mt-8">
             Last updated: {format(new Date(lastSynced), 'PPPp')}
           </p>
         )}
-        <p className="text-xs text-gray-400 mt-8">
-          {lastSynced
-            ? `Last updated (test): ${format(new Date(lastSynced), 'PPPp')}`
-            : 'Last updated: —'}
-        </p>
       </aside>
 
-      <main className="flex-1 p-6 pr-72 bg-gray-100 font-sans">
-        <div className="max-w-7xl mx-auto bg-white shadow-xl rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
+      {/* Main Dashboard Content */}
+      <main className="flex-1 p-6 px-[18rem] bg-gray-100 font-sans">
+        <div className="max-w-7xl mx-auto space-y-16 bg-white shadow-xl rounded-xl p-8">
+
           {commissionData?.data && adHocData?.data && (
-            <section>
-              <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-                Total income
-              </h2>
-              <Bar
-                data={{
-                  labels: formattedLabels,
-                  datasets: [
-                    {
-                      label: 'Commission (Complete)',
-                      data: filteredMonths.map((m) => {
-                        const idx = commissionData.months.indexOf(m);
-                        return idx >= 0 ? commissionData.data[idx] : 0;
-                      }),
-                      backgroundColor: '#34D399',
-                      stack: 'income',
-                    },
-                    {
-                      label: 'Net Ad Hoc Revenue',
-                      data: filteredMonths.map((m) => {
-                        const idx = adHocData.months.indexOf(m);
-                        return idx >= 0 ? adHocData.data[idx] : 0;
-                      }),
-                      backgroundColor: '#818CF8',
-                      stack: 'income',
-                    },
-                  ],
-                }}
-                options={createBarOptions('Total Income (£)', (val) => `£${val.toFixed(2)}`, true)}
-              />
+            <section id="income">
+              <h2 className="text-2xl font-bold mb-4">Income</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <TotalIncomeChart
+                  commissionData={commissionData}
+                  adHocData={adHocData}
+                  filteredMonths={filteredMonths}
+                />
+                <CommissionChart
+                  totalCommissionData={totalCommissionData}
+                  isMonthInRange={isMonthInRange}
+                  startIdx={startIdx}
+                  endIdx={endIdx}
+                  selectedStatuses={selectedStatuses}
+                />
+                <AdHocChart
+                  adHocData={adHocData}
+                  filteredMonths={filteredMonths}
+                />
+              </div>
             </section>
           )}
 
-          {validRange && totalCommissionData && (
-            <section>
-              <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-                Commission
-              </h2>
-              <Bar
-                data={{
-                  labels: totalCommissionData.rawMonths
-                    .filter(isMonthInRange)
-                    .map((m) => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy')),
-                  datasets: totalCommissionData.statuses
-                    .filter(({ status }) => selectedStatuses.includes(status))
-                    .map(({ status, data }) => ({
-                      label: `Total Commission – ${status}`,
-                      data: data.slice(startIdx, endIdx + 1),
-                      backgroundColor: getColor(status),
-                      barPercentage: 0.8,
-                      categoryPercentage: 0.7,
-                      stack: 'commission',
-                    })),
-                }}
-                options={createBarOptions('Total Commission (£)', (val) => `£${val.toFixed(2)}`, true)}
-              />
+          {validRange && commissionData?.data && (
+            <section id="commission-breakdown">
+              <h2 className="text-2xl font-bold mb-4">Commission Performance</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <CommissionChart
+                  totalCommissionData={totalCommissionData}
+                  isMonthInRange={isMonthInRange}
+                  startIdx={startIdx}
+                  endIdx={endIdx}
+                  selectedStatuses={selectedStatuses}
+                />
+                <LessonHoursChart
+                  filteredAppointmentData={filteredAppointmentData}
+                />
+                <AvgCommissionRateChart
+                  commissionRateData={commissionRateData}
+                  isMonthInRange={isMonthInRange}
+                  startIdx={startIdx}
+                  endIdx={endIdx}
+                  selectedStatuses={selectedStatuses}
+                />
+              </div>
             </section>
           )}
 
-          {validRange && adHocData && Array.isArray(adHocData.data) && (
-            <section>
-              <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-                Net ad hoc charges
-              </h2>
-              <Bar
-                data={{
-                  labels: formattedLabels,
-                  datasets: [
-                    {
-                      label: 'Ad Hoc Charges',
-                      data: filteredMonths.map((m) => {
-                        const idx = adHocData.months.indexOf(m);
-                        return idx >= 0 ? adHocData.data[idx] : 0;
-                      }),
-                      backgroundColor: '#818CF8',
-                      barPercentage: 0.8,
-                      categoryPercentage: 0.7,
-                    },
-                  ],
-                }}
-                options={createBarOptions('Ad Hoc Revenue (£)', (val) => `£${val.toFixed(2)}`)}
-              />
-            </section>
-          )}
 
-          {validRange && (
-            <section>
-              <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-                Lesson hours
-              </h2>
-              {filteredAppointmentData.datasets.length > 0 ? (
-                <Bar data={filteredAppointmentData} options={createBarOptions('', (val) => val, true)} />
-              ) : (
-                <p className="text-center text-gray-500">No data to display.</p>
-              )}
-            </section>
-          )}
 
-          {validRange && commissionRateData && (
-            <section>
-              <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-                Average commission rate
-              </h2>
-              <Line
-                data={{
-                  labels: commissionRateData.rawMonths
-                    .filter(isMonthInRange)
-                    .map((m) => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy')),
-                  datasets: commissionRateData.statuses
-                    .filter(({ status }) => selectedStatuses.includes(status))
-                    .map(({ status, data }) => ({
-                      label: `Avg Commission – ${status}`,
-                      data: data
-                        .map((entry) =>
-                          entry?.totalHours > 0 ? +(entry.totalCommission / entry.totalHours).toFixed(2) : null
-                        )
-                        .slice(startIdx, endIdx + 1),
-                      borderColor: getColor(status),
-                      backgroundColor: getColor(status),
-                      tension: 0.3,
-                      fill: false,
-                      pointRadius: 3,
-                    })),
-                }}
-                options={createBarOptions('Average Commission Rate (£/hr)', (val) => `£${val.toFixed(2)}`)}
-              />
-            </section>
-          )}
+
+
         </div>
       </main>
     </div>
   );
+
 
 
 }
