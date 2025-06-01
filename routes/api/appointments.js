@@ -145,6 +145,61 @@ router.get('/by-month', async (req, res) => {
   }
 });
 
+// 📊 Commission by Job (Pareto with Month)
+router.get('/commission-by-job', async (req, res) => {
+  try {
+    const appointments = await Appointment.find({
+      status: 'complete',
+      start: { $exists: true }
+    });
+
+    const jobMap = {}; // { serviceName: { [month]: { client, tutor, commission, count } } }
+
+    appointments.forEach(app => {
+      const serviceName = app.service?.name || 'Unknown';
+      const clientRate = parseFloat(app.rcras?.[0]?.charge_rate) || parseFloat(app.service?.dft_charge_rate || 0);
+      const tutorRate = parseFloat(app.cjas?.[0]?.pay_rate) || parseFloat(app.service?.dft_contractor_rate || 0);
+      const month = app.start ? new Date(app.start).toISOString().slice(0, 7) : null;
+      if (!clientRate || !tutorRate || !month) return;
+
+      if (!jobMap[serviceName]) jobMap[serviceName] = {};
+      if (!jobMap[serviceName][month]) {
+        jobMap[serviceName][month] = { client: 0, tutor: 0, commission: 0, count: 0 };
+      }
+
+      jobMap[serviceName][month].client += clientRate;
+      jobMap[serviceName][month].tutor += tutorRate;
+      jobMap[serviceName][month].commission += clientRate - tutorRate;
+      jobMap[serviceName][month].count += 1;
+    });
+
+    const result = [];
+
+    for (const [serviceName, monthlyData] of Object.entries(jobMap)) {
+      for (const [month, values] of Object.entries(monthlyData)) {
+        result.push({
+          service: serviceName,
+          month,
+          clientRate: +(values.client / values.count).toFixed(2),
+          tutorRate: +(values.tutor / values.count).toFixed(2),
+          commissionRate: +((values.commission / values.count).toFixed(2)),
+          totalClient: +values.client.toFixed(2),
+          totalTutor: +values.tutor.toFixed(2),
+          totalCommission: +values.commission.toFixed(2)
+        });
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error calculating commission by job');
+  }
+});
+
+
+
+
 router.get('/complete-commission-by-month', async (req, res) => {
   try {
     const appointments = await Appointment.find();

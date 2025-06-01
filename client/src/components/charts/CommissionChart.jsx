@@ -3,6 +3,11 @@ import { createBarOptions, getColor } from '../../utils/chartUtils';
 import { parse, format } from 'date-fns';
 
 export default function CommissionChart({ totalCommissionData, isMonthInRange, startIdx, endIdx, selectedStatuses }) {
+  
+  if (!totalCommissionData?.rawMonths || !Array.isArray(totalCommissionData.statuses)) {
+    return <p className="text-center text-gray-400">Loading commission data...</p>;
+  }
+
   const labels = totalCommissionData.rawMonths
     .filter(isMonthInRange)
     .map((m) => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy'));
