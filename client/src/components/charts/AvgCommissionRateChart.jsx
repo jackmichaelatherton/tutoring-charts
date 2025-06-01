@@ -3,6 +3,11 @@ import { createBarOptions, getColor } from '../../utils/chartUtils';
 import { parse, format } from 'date-fns';
 
 export default function AvgCommissionRateChart({ commissionRateData, isMonthInRange, startIdx, endIdx, selectedStatuses }) {
+  
+  if (!commissionRateData?.rawMonths || !Array.isArray(commissionRateData.statuses)) {
+    return <p className="text-center text-gray-400">Loading commission rate data...</p>;
+  }
+  
   const labels = commissionRateData.rawMonths
     .filter(isMonthInRange)
     .map((m) => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy'));

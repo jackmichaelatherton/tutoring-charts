@@ -1,9 +1,14 @@
 import { Bar } from 'react-chartjs-2';
 import { createBarOptions } from '../../utils/chartUtils';
+import { parse, format } from 'date-fns';
 
 export default function AdHocChart({ adHocData, filteredMonths }) {
+  const formattedLabels = filteredMonths.map((m) =>
+    format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy')
+  );
+
   const dataset = {
-    labels: filteredMonths,
+    labels: formattedLabels,
     datasets: [
       {
         label: 'Ad Hoc Charges',
@@ -23,7 +28,13 @@ export default function AdHocChart({ adHocData, filteredMonths }) {
       <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
         Net ad hoc charges
       </h2>
-      <Bar data={dataset} options={createBarOptions('Ad Hoc Revenue (£)', (val) => `£${val.toFixed(2)}`)} />
+      <Bar
+        data={dataset}
+        options={createBarOptions(
+          'Ad Hoc Revenue (£)',
+          (val) => `£${val.toFixed(2)}`
+        )}
+      />
     </section>
   );
 }
