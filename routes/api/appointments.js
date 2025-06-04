@@ -110,75 +110,83 @@ router.get('/avg-commission-by-month', async (req, res) => {
   }
 });
 
-// ⏱ Lesson Hours by Month
+// ⏱ Lesson Hours and other metrics by Month
 router.get('/by-month', async (req, res) => {
   try {
     const appointments = await Appointment.find();
     const recipientAppointments = await RecipientAppointment.find();
 
-    // DEBUG: Check recipientAppointments content
-    console.log('Total recipientAppointments:', recipientAppointments.length);
-
-    // Map of appointmentId (as string) => recipientId
     const recipientMap = new Map();
     for (const ra of recipientAppointments) {
       if (ra.appointment && ra.recipient) {
-        console.log('RA appointment:', ra.appointment, 'Type:', typeof ra.appointment);
         recipientMap.set(String(ra.appointment), ra.recipient);
       }
     }
 
-    console.log('recipientMap size:', recipientMap.size);
-
     const monthMap = {};
 
     appointments.forEach(app => {
-      const start = new Date(app.start);
       const status = (app.status || 'unknown').toLowerCase();
+      const start = new Date(app.start);
+      const durationHours = (new Date(app.finish) - new Date(app.start)) / 1000 / 60 / 60;
       const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthMap[monthKey]) {
-        monthMap[monthKey] = { statuses: {}, students: new Set() };
+        monthMap[monthKey] = {
+          statuses: {},
+          lessonHoursPerStatus: {},
+          studentsPerStatus: {}
+        };
       }
 
-      // Count by status
+      // Count statuses
       monthMap[monthKey].statuses[status] = (monthMap[monthKey].statuses[status] || 0) + 1;
 
-      // DEBUG: Test recipient matching
-      const appIdStr = String(app._id);
-      let recipientId = recipientMap.get(appIdStr);
-      if (!recipientId) {
-        // Fallback brute-force match
-        for (let [k, v] of recipientMap.entries()) {
-          if (k == appIdStr) {
-            recipientId = v;
-            break;
-          }
-        }
-      }
+      // Lesson hours per status
+      monthMap[monthKey].lessonHoursPerStatus[status] =
+        (monthMap[monthKey].lessonHoursPerStatus[status] || 0) + durationHours;
 
-      if (!recipientId) {
-        console.log(`❌ No recipient found for appointment ${appIdStr}`);
-      } else {
-        console.log(`✅ Recipient found for appointment ${appIdStr}: ${recipientId}`);
-        monthMap[monthKey].students.add(recipientId);
+      // Unique students per status
+      const recipientId = recipientMap.get(String(app.id));
+      if (recipientId) {
+        if (!monthMap[monthKey].studentsPerStatus[status]) {
+          monthMap[monthKey].studentsPerStatus[status] = new Set();
+        }
+        monthMap[monthKey].studentsPerStatus[status].add(recipientId);
       }
     });
 
     const months = Object.keys(monthMap).sort();
     const allStatuses = [...new Set(appointments.map(app => (app.status || 'unknown').toLowerCase()))];
 
-    const statusData = allStatuses.map(status => ({
+    const statuses = allStatuses.map(status => ({
       status,
-      data: months.map(m => monthMap[m].statuses[status] || 0)
+      data: months.map(m => monthMap[m]?.statuses[status] || 0)
     }));
 
-    const uniqueStudents = months.map(m => monthMap[m].students.size);
+    const lessonHoursPerMonthRaw = months.map(month => {
+      const obj = {};
+      for (const status of allStatuses) {
+        obj[status] = monthMap[month]?.lessonHoursPerStatus[status] || 0;
+      }
+      return obj;
+    });
 
+    const studentMapPerMonthRaw = months.map(month => {
+      const obj = {};
+      for (const status of allStatuses) {
+        obj[status] = monthMap[month]?.studentsPerStatus[status]
+          ? Array.from(monthMap[month].studentsPerStatus[status])
+          : [];
+      }
+      return obj;
+    });
+    
     res.json({
       months,
-      statuses: statusData,
-      uniqueStudents
+      statuses,
+      lessonHoursPerMonthRaw,
+      studentMapPerMonthRaw
     });
 
   } catch (err) {
@@ -186,7 +194,6 @@ router.get('/by-month', async (req, res) => {
     res.status(500).send('Error aggregating appointment data');
   }
 });
-
 
 
 // 📊 Commission by Job (Pareto with Month)

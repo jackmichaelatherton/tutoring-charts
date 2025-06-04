@@ -33,7 +33,7 @@ export default function TotalIncomeChart({ commissionData, adHocData, filteredMo
 
   return (
     <section id="total-income">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">Total income</h2>
+      <h2 className="text-lg font-semibold mb-2">Total income</h2>
       <Bar
         data={chartData}
         options={createBarOptions('Total Income (£)', (val) => `£${val.toFixed(2)}`, true)}

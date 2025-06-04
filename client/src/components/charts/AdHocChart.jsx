@@ -25,7 +25,7 @@ export default function AdHocChart({ adHocData, filteredMonths }) {
 
   return (
     <section id="adhoc-revenue">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
+      <h2 className="text-lg font-semibold mb-2">
         Net ad hoc charges
       </h2>
       <Bar

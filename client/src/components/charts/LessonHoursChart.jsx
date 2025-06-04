@@ -4,7 +4,7 @@ import { createBarOptions } from '../../utils/chartUtils';
 export default function LessonHoursChart({ filteredAppointmentData }) {
   return (
     <section id="lesson-hours">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
+      <h2 className="text-lg font-semibold mb-2">
         Lesson hours
       </h2>
       {filteredAppointmentData.datasets.length > 0 ? (

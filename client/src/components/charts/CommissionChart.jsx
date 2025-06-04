@@ -25,7 +25,7 @@ export default function CommissionChart({ totalCommissionData, isMonthInRange, s
 
   return (
     <section id="commission">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
+      <h2 className="text-lg font-semibold mb-2">
         Commission
       </h2>
       <Bar

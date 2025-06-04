@@ -26,18 +26,17 @@ const Meta = require('../models/Meta');
 
 // Endpoint + model mapping
 const models = {
-  // ad_hoc_charges: { path: '/adhoccharges/', model: AdHocCharge },
-  // appointments: { path: '/appointments/', model: Appointment },
-  // clients: { path: '/clients/', model: Client },
-  // contractors: { path: '/contractors/', model: Contractor },
-  // invoices: { path: '/invoices/', model: Invoice },
-  // payment_orders: { path: '/payment-orders/', model: PaymentOrder },
-  // recipients: { path: '/recipients/', model: Recipient },
-  recipient_appointments: { path: '/recipient_appointments/', model: RecipientAppointment }
-  // ,
-  // reports: { path: '/reports/', model: Report },
-  // services: { path: '/services/', model: Service },
-  // tenders: { path: '/tenders/', model: Tender }
+  ad_hoc_charges: { path: '/adhoccharges/', model: AdHocCharge },
+  appointments: { path: '/appointments/', model: Appointment },
+  clients: { path: '/clients/', model: Client },
+  contractors: { path: '/contractors/', model: Contractor },
+  invoices: { path: '/invoices/', model: Invoice },
+  payment_orders: { path: '/payment-orders/', model: PaymentOrder },
+  recipients: { path: '/recipients/', model: Recipient },
+  recipient_appointments: { path: '/recipient_appointments/', model: RecipientAppointment },
+  reports: { path: '/reports/', model: Report },
+  services: { path: '/services/', model: Service },
+  tenders: { path: '/tenders/', model: Tender }
 };
 
 // Sync endpoint - without blocking the cron job

@@ -21,6 +21,7 @@
   import AvgCommissionRateChart from './components/charts/AvgCommissionRateChart';
   import CommissionByJobChart from './components/charts/CommissionByJobChart';
   import UniqueStudentsChart from './components/charts/UniqueStudentsChart';
+  import AvgLessonHoursChart from './components/charts/AvgLessonHoursChart';
 
   ChartJS.register(
     CategoryScale,
@@ -98,86 +99,110 @@
   //   }
   // });
 
-  function App() {
-    
-    // const [panelView, setPanelView] = useState('filters');
-    const [allStatuses, setAllStatuses] = useState([]);
-    const [selectedStatuses, setSelectedStatuses] = useState(['complete']);
-    const [months, setMonths] = useState([]);
-    const [rawData, setRawData] = useState([]);
-    const [commissionRateData, setCommissionRateData] = useState(null);
-    const [adHocData, setAdHocData] = useState(null);
-    const [commissionData, setCommissionData] = useState(null);
-    const [lastSynced, setLastSynced] = useState(null);
-    const [totalCommissionData, setTotalCommissionData] = useState(null);
-    const [commissionByJobData, setCommissionByJobData] = useState([]);
-    const [uniqueStudentsData, setUniqueStudentsData] = useState({ months: [], data: [] });
+function App() {
+  const [allStatuses, setAllStatuses] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState(['complete']);
+  const [months, setMonths] = useState([]);
+  const [rawData, setRawData] = useState([]);
+  const [commissionRateData, setCommissionRateData] = useState(null);
+  const [adHocData, setAdHocData] = useState(null);
+  const [commissionData, setCommissionData] = useState(null);
+  const [lastSynced, setLastSynced] = useState(null);
+  const [totalCommissionData, setTotalCommissionData] = useState(null);
+  // const [commissionByJobData, setCommissionByJobData] = useState([]);
+  const [uniqueStudentsData, setUniqueStudentsData] = useState({ months: [], data: [] });
+  const [avgLessonHoursData, setAvgLessonHoursData] = useState({ months: [], data: [] });
+  const [lessonHoursPerMonthRaw, setLessonHoursPerMonthRaw] = useState([]);
+  const [studentMapPerMonthRaw, setStudentMapPerMonthRaw] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
+  const today = new Date();
+  const defaultEnd = format(today, 'yyyy-MM');
+  const defaultStart = format(subMonths(today, 12), 'yyyy-MM');
 
-    const today = new Date();
-    const defaultEnd = format(today, 'yyyy-MM');
-    const defaultStart = format(subMonths(today, 12), 'yyyy-MM');
+  const [dateRange, setDateRange] = useState({
+    start: defaultStart,
+    end: defaultEnd
+  });
 
-    const [dateRange, setDateRange] = useState({
-      start: defaultStart,
-      end: defaultEnd
+  useEffect(() => {
+    const increment = () => {
+      setLoadingProgress((prev) => Math.min(prev + Math.random() * 10, 90));
+    };
+
+    const progressInterval = setInterval(increment, 200);
+
+    Promise.all([
+      axios.get('/api/appointments/by-month'),
+      axios.get('/api/appointments/total-commission-by-month'),
+      axios.get('/api/appointments/avg-commission-by-month'),
+      axios.get('/api/adhoc/adhoc-revenue-by-month'),
+      axios.get('/api/appointments/complete-commission-by-month'),
+      axios.get('/api/appointments/commission-by-job'),
+      axios.get('/api/last-synced')
+    ])
+      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, syncRes]) => { //add jobRes back in here if re-adding the adhoc charges chart
+        const byMonthData = byMonthRes.data;
+
+        setMonths(byMonthData.months);
+        setRawData(byMonthData.statuses);
+        setAllStatuses(byMonthData.statuses.map(s => s.status));
+        setLessonHoursPerMonthRaw(byMonthData.lessonHoursPerMonthRaw);
+        setStudentMapPerMonthRaw(byMonthData.studentMapPerMonthRaw);
+
+        setTotalCommissionData({
+          rawMonths: totalCommRes.data.months,
+          statuses: totalCommRes.data.statuses
+        });
+
+        setCommissionRateData({
+          rawMonths: avgCommRes.data.months,
+          statuses: avgCommRes.data.statuses
+        });
+
+        setAdHocData(adHocRes.data);
+        setCommissionData(completeCommRes.data);
+        // setCommissionByJobData(jobRes.data);
+        setLastSynced(syncRes.data.lastSynced);
+      })
+      .catch((err) => {
+        console.error('❌ Error loading dashboard data:', err);
+      })
+      .finally(() => {
+        clearInterval(progressInterval);
+        setLoadingProgress(100);
+        setTimeout(() => setIsLoading(false), 300);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!lessonHoursPerMonthRaw.length || !studentMapPerMonthRaw.length) return;
+
+    const updatedUniqueStudents = studentMapPerMonthRaw.map(entry => {
+      const allStudents = selectedStatuses.flatMap(status => entry[status] || []);
+      return new Set(allStudents).size;
     });
 
-    useEffect(() => {
-      axios.get('/api/appointments/by-month')
-        .then(res => {
-          setMonths(res.data.months);
-          setRawData(res.data.statuses);
-          setAllStatuses(res.data.statuses.map(s => s.status));
-          setUniqueStudentsData({
-            months: res.data.months,
-            data: res.data.uniqueStudents
-          });
-        });
-    }, []);
+    const updatedAvgLessonHours = lessonHoursPerMonthRaw.map((entry, idx) => {
+      const totalHours = selectedStatuses.reduce(
+        (sum, status) => sum + (entry[status] || 0),
+        0
+      );
+
+      const allStudents = selectedStatuses.flatMap(
+        status => studentMapPerMonthRaw[idx][status] || []
+      );
+
+      const uniqueStudentCount = new Set(allStudents).size;
+
+      return uniqueStudentCount > 0 ? totalHours / uniqueStudentCount : 0;
+    });
 
 
-    useEffect(() => {
-      axios.get('/api/appointments/total-commission-by-month')
-        .then(res => {
-          const { months, statuses } = res.data;
-          setTotalCommissionData({ rawMonths: months, statuses });
-        });
-    }, []);
-
-    useEffect(() => {
-      axios.get('/api/appointments/avg-commission-by-month')
-        .then(res => {
-          const { months, statuses } = res.data;
-          setCommissionRateData({ rawMonths: months, statuses });
-        });
-    }, []);
-
-    useEffect(() => {
-      axios.get('/api/adhoc/adhoc-revenue-by-month')
-        .then(res => {
-          setAdHocData(res.data);
-        });
-    }, []);
-
-    useEffect(() => {
-      axios.get('/api/appointments/complete-commission-by-month')
-        .then(res => {
-          setCommissionData(res.data); // { months, data }
-        });
-    }, []);
-
-    useEffect(() => {
-      axios.get('/api/appointments/commission-by-job')
-        .then(res => setCommissionByJobData(res.data))
-        .catch(err => console.error('Failed to load commission by job:', err));
-    }, []);
-
-
-    useEffect(() => {
-      axios.get('/api/last-synced')
-        .then(res => setLastSynced(res.data.lastSynced));
-    }, []);
+    setUniqueStudentsData({ months, data: updatedUniqueStudents });
+    setAvgLessonHoursData({ months, data: updatedAvgLessonHours });
+  }, [lessonHoursPerMonthRaw, studentMapPerMonthRaw, selectedStatuses, months]);
 
     const toggleStatus = (status) => {
       setSelectedStatuses(prev =>
@@ -216,6 +241,21 @@
 
     const validRange = startIdx >= 0 && endIdx >= 0 && endIdx >= startIdx;
 
+    if (isLoading) {
+      return (
+        <div className="relative w-full h-screen bg-gray-100">
+          <div className="fixed top-0 left-0 w-full h-1 bg-gray-200 z-50">
+            <div
+              className="h-full bg-blue-600 transition-all duration-200"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500 text-sm">Loading dashboard…</p>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="flex">
@@ -319,7 +359,7 @@
 
             {commissionData?.data && adHocData?.data && totalCommissionData && (
               <section id="income-breakdown">
-                <h2 className="text-2xl font-bold mb-4">Income breakdown</h2>
+                <h2 className="text-2xl font-bold mb-4">Income = Commission + ad hoc charges</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <CommissionChart
                     totalCommissionData={totalCommissionData}
@@ -338,7 +378,7 @@
 
             {validRange && commissionData?.data && (
               <section id="commission-breakdown">
-                <h2 className="text-2xl font-bold mb-4">Commission breakdown</h2>
+                <h2 className="text-2xl font-bold mb-4">Commission = Lesson hours x avg commission rate</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   {/* <CommissionChart
                     totalCommissionData={totalCommissionData}
@@ -357,22 +397,27 @@
                     endIdx={endIdx}
                     selectedStatuses={selectedStatuses}
                   />
-                  <CommissionByJobChart 
+                  {/* <CommissionByJobChart 
                     data={commissionByJobData} 
                     isMonthInRange={isMonthInRange}
                     startIdx={startIdx}
                     endIdx={endIdx}
                     selectedStatuses={selectedStatuses}
-                  />
+                  /> */}
                 </div>
               </section>
             )}
 
             <section id="students">
-              <h2 className="text-2xl font-bold mb-4">Student Metrics</h2>
+              <h2 className="text-2xl font-bold mb-4">Lesson hours = No. of students x hours per student</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <UniqueStudentsChart
                   uniqueStudentsData={uniqueStudentsData}
+                  filteredMonths={filteredMonths}
+                />
+                <AvgLessonHoursChart
+                  months={avgLessonHoursData.months}
+                  data={avgLessonHoursData.data}
                   filteredMonths={filteredMonths}
                 />
               </div>

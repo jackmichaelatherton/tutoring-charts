@@ -48,8 +48,8 @@ export default function CommissionByJobChart({
 
   return (
     <section id="commission-by-job">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-        Commission by Job (Pareto)
+      <h2 className="text-lg font-semibold mb-2">
+        Commission by job
       </h2>
 
       <div className="flex justify-center gap-4 mb-6">
