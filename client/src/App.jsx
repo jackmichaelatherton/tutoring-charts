@@ -20,6 +20,7 @@
   import LessonHoursChart from './components/charts/LessonHoursChart';
   import AvgCommissionRateChart from './components/charts/AvgCommissionRateChart';
   import CommissionByJobChart from './components/charts/CommissionByJobChart';
+  import UniqueStudentsChart from './components/charts/UniqueStudentsChart';
 
   ChartJS.register(
     CategoryScale,
@@ -110,6 +111,8 @@
     const [lastSynced, setLastSynced] = useState(null);
     const [totalCommissionData, setTotalCommissionData] = useState(null);
     const [commissionByJobData, setCommissionByJobData] = useState([]);
+    const [uniqueStudentsData, setUniqueStudentsData] = useState({ months: [], data: [] });
+
 
     const today = new Date();
     const defaultEnd = format(today, 'yyyy-MM');
@@ -126,8 +129,13 @@
           setMonths(res.data.months);
           setRawData(res.data.statuses);
           setAllStatuses(res.data.statuses.map(s => s.status));
+          setUniqueStudentsData({
+            months: res.data.months,
+            data: res.data.uniqueStudents
+          });
         });
     }, []);
+
 
     useEffect(() => {
       axios.get('/api/appointments/total-commission-by-month')
@@ -213,7 +221,7 @@
       <div className="flex">
 
         {/* Right Sidebar */}
-        <aside className="w-64 p-4 bg-white shadow-lg fixed right-0 top-0 h-screen border-l border-gray-200 flex flex-col justify-between">
+        <aside className="w-64 p-4 bg-white shadow-lg fixed top-0 right-0 h-screen border-l border-gray-200 flex flex-col justify-between">
           {/* Top: Section Selector */}
           <div>
             <div className="mb-4">
@@ -222,6 +230,7 @@
             <nav className="space-y-2">
               {[
                 { label: 'Income', id: 'income' },
+                { label: 'Income Breakdown', id: 'income-breakdown' },
                 { label: 'Commission Breakdown', id: 'commission-breakdown' },
               ].map(({ label, id }) => (
                 <button
@@ -304,6 +313,14 @@
                     adHocData={adHocData}
                     filteredMonths={filteredMonths}
                   />
+                </div>
+              </section>
+            )}
+
+            {commissionData?.data && adHocData?.data && totalCommissionData && (
+              <section id="income-breakdown">
+                <h2 className="text-2xl font-bold mb-4">Income breakdown</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <CommissionChart
                     totalCommissionData={totalCommissionData}
                     isMonthInRange={isMonthInRange}
@@ -350,6 +367,16 @@
                 </div>
               </section>
             )}
+
+            <section id="students">
+              <h2 className="text-2xl font-bold mb-4">Student Metrics</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <UniqueStudentsChart
+                  uniqueStudentsData={uniqueStudentsData}
+                  filteredMonths={filteredMonths}
+                />
+              </div>
+            </section>
 
           </div>
         </main>

@@ -18,6 +18,7 @@ const Contractor = require('../models/Contractor');
 const Invoice = require('../models/Invoice');
 const PaymentOrder = require('../models/PaymentOrder');
 const Recipient = require('../models/Recipient');
+const RecipientAppointment = require('../models/RecipientAppointment');
 const Report = require('../models/Report');
 const Service = require('../models/Service');
 const Tender = require('../models/Tender');
@@ -25,16 +26,18 @@ const Meta = require('../models/Meta');
 
 // Endpoint + model mapping
 const models = {
-  ad_hoc_charges: { path: '/adhoccharges/', model: AdHocCharge },
-  appointments: { path: '/appointments/', model: Appointment },
-  clients: { path: '/clients/', model: Client },
-  contractors: { path: '/contractors/', model: Contractor },
-  invoices: { path: '/invoices/', model: Invoice },
-  payment_orders: { path: '/payment-orders/', model: PaymentOrder },
-  recipients: { path: '/recipients/', model: Recipient },
-  reports: { path: '/reports/', model: Report },
-  services: { path: '/services/', model: Service },
-  tenders: { path: '/tenders/', model: Tender }
+  // ad_hoc_charges: { path: '/adhoccharges/', model: AdHocCharge },
+  // appointments: { path: '/appointments/', model: Appointment },
+  // clients: { path: '/clients/', model: Client },
+  // contractors: { path: '/contractors/', model: Contractor },
+  // invoices: { path: '/invoices/', model: Invoice },
+  // payment_orders: { path: '/payment-orders/', model: PaymentOrder },
+  // recipients: { path: '/recipients/', model: Recipient },
+  recipient_appointments: { path: '/recipient_appointments/', model: RecipientAppointment }
+  // ,
+  // reports: { path: '/reports/', model: Report },
+  // services: { path: '/services/', model: Service },
+  // tenders: { path: '/tenders/', model: Tender }
 };
 
 // Sync endpoint - without blocking the cron job
@@ -52,8 +55,17 @@ router.get('/sync-all', async (req, res) => {
         for (const entry of data) {
           let documentId = entry.id;
 
+          // Fallback for recipient_appointments — use appointment + recipient ID combo
+          if (!documentId && key === 'recipient_appointments') {
+            if (entry.appointment && entry.recipient) {
+              documentId = `${entry.appointment}_${entry.recipient}`; // compound key
+              entry.id = documentId;
+            }
+          }
+
+          // Other fallback (e.g. reports)
           if (!documentId) {
-            let fallbackUrl = entry.url || (key === 'reports' && entry.appointment?.url);
+            const fallbackUrl = entry.url || (key === 'reports' && entry.appointment?.url);
             if (typeof fallbackUrl === 'string') {
               const parts = fallbackUrl.split('/').filter(Boolean);
               const maybeId = parts.at(-1);
@@ -69,6 +81,7 @@ router.get('/sync-all', async (req, res) => {
             continue;
           }
 
+          // 📝 Special handling for reports
           if (key === 'reports' && Array.isArray(entry.extra_attrs)) {
             for (const attr of entry.extra_attrs) {
               if (attr.machine_name === 'client_report') {
@@ -78,6 +91,14 @@ router.get('/sync-all', async (req, res) => {
               } else if (attr.machine_name.includes('progress')) {
                 entry.progressRating = attr.value;
               }
+            }
+          }
+
+          // ✅ Optional: flatten recipient ID into appointment for convenience (legacy fallback)
+          if (key === 'appointments' && Array.isArray(entry.rcras) && entry.rcras.length > 0) {
+            const recipient = entry.rcras[0]?.recipient;
+            if (recipient) {
+              entry.student = recipient;
             }
           }
 
@@ -93,17 +114,18 @@ router.get('/sync-all', async (req, res) => {
         results[key] = `✅ Synced ${count} records`;
       } catch (err) {
         results[key] = `❌ Error: ${err.message}`;
-        console.error(`❌ Failed syncing ${key}:`, err.message);
+        console.error(`❌ Failed syncing ${key}:`, err);
       }
     }
 
+    // ⏱ Log last sync
     await Meta.updateOne(
       { key: 'lastSynced' },
       { $set: { value: new Date().toISOString() } },
       { upsert: true }
     );
 
-    console.log('✅ Background sync complete');
+    console.log('✅ Background sync complete:', results);
   }, 100);
 });
 

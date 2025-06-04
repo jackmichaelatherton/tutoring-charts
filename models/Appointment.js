@@ -15,6 +15,7 @@ const AppointmentSchema = new mongoose.Schema({
     charge_rate: String,
     status: String
   }],
+  student: Number,
   cjas: [{
     contractor: Number,
     contractor_name: String,
