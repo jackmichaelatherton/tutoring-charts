@@ -142,7 +142,7 @@ function App() {
       axios.get('/api/appointments/commission-by-job'),
       axios.get('/api/last-synced')
     ])
-      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, syncRes]) => { //add jobRes back in here if re-adding the adhoc charges chart
+      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, , syncRes]) => { //add jobRes back in here if re-adding the adhoc charges chart
         const byMonthData = byMonthRes.data;
 
         setMonths(byMonthData.months);
@@ -269,9 +269,10 @@ function App() {
             </div>
             <nav className="space-y-2">
               {[
+                { label: 'Total income', id: 'total-income' },
                 { label: 'Income', id: 'income' },
-                { label: 'Income Breakdown', id: 'income-breakdown' },
-                { label: 'Commission Breakdown', id: 'commission-breakdown' },
+                { label: 'Commission', id: 'commission' },
+                { label: 'Lesson hours', id: 'lesson-hours' },
               ].map(({ label, id }) => (
                 <button
                   key={id}
@@ -287,27 +288,13 @@ function App() {
             </nav>
           </div>
 
-          {/* Bottom: Filters */}
+          {/* Bottom: Filters + Last Updated */}
           <div>
-            <div className="space-y-2 mb-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Filters</h3>
-            </div>
-            <nav className="space-y-2"></nav>
-              {allStatuses.map(status => (
-                <label key={status} className="block text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="mr-2 accent-blue-600"
-                    checked={selectedStatuses.includes(status)}
-                    onChange={() => toggleStatus(status)}
-                  />
-                  <span className="capitalize">{status}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="space-y-4">
+            {/* Date Pickers First */}
+            <div className="space-y-4 mb-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold">Dates</h3>
+              </div>
               <label className="block text-sm text-gray-700">
                 Start Month:
                 <input
@@ -332,6 +319,25 @@ function App() {
               </label>
             </div>
 
+            {/* Then Filters */}
+            <div className="space-y-2 mb-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold">Filters</h3>
+              </div>
+              {allStatuses.map(status => (
+                <label key={status} className="block text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="mr-2 accent-blue-600"
+                    checked={selectedStatuses.includes(status)}
+                    onChange={() => toggleStatus(status)}
+                  />
+                  <span className="capitalize">{status}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Last Updated Timestamp */}
             {lastSynced && (
               <p className="text-xs text-gray-400 mt-4">
                 Last updated: {format(new Date(lastSynced), 'PPPp')}
@@ -343,9 +349,8 @@ function App() {
         {/* Main Dashboard Content */}
         <main className="flex-1 p-6 pr-[18rem] pl-6 bg-gray-100 font-sans">
           <div className="max-w-7xl mx-auto space-y-16 bg-white shadow-xl rounded-xl p-8">
-
             {commissionData?.data && adHocData?.data && totalCommissionData && (
-              <section id="income">
+              <section id="total-income">
                 <h2 className="text-2xl font-bold mb-4">Income</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <TotalIncomeChart
@@ -358,7 +363,7 @@ function App() {
             )}
 
             {commissionData?.data && adHocData?.data && totalCommissionData && (
-              <section id="income-breakdown">
+              <section id="income">
                 <h2 className="text-2xl font-bold mb-4">Income = Commission + ad hoc charges</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <CommissionChart
@@ -377,7 +382,7 @@ function App() {
             )}
 
             {validRange && commissionData?.data && (
-              <section id="commission-breakdown">
+              <section id="commission">
                 <h2 className="text-2xl font-bold mb-4">Commission = Lesson hours x avg commission rate</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   {/* <CommissionChart
@@ -408,7 +413,7 @@ function App() {
               </section>
             )}
 
-            <section id="students">
+            <section id="lesson-hours">
               <h2 className="text-2xl font-bold mb-4">Lesson hours = No. of students x hours per student</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <UniqueStudentsChart
