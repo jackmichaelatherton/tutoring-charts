@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Appointment = require('../../models/Appointment');
+const RecipientAppointment = require('../../models/RecipientAppointment');
 const { DateTime } = require('luxon');
 
 // Utility: Safely extract charge & pay rates
@@ -113,37 +114,80 @@ router.get('/avg-commission-by-month', async (req, res) => {
 router.get('/by-month', async (req, res) => {
   try {
     const appointments = await Appointment.find();
-    const grouped = {};
+    const recipientAppointments = await RecipientAppointment.find();
+
+    // DEBUG: Check recipientAppointments content
+    console.log('Total recipientAppointments:', recipientAppointments.length);
+
+    // Map of appointmentId (as string) => recipientId
+    const recipientMap = new Map();
+    for (const ra of recipientAppointments) {
+      if (ra.appointment && ra.recipient) {
+        console.log('RA appointment:', ra.appointment, 'Type:', typeof ra.appointment);
+        recipientMap.set(String(ra.appointment), ra.recipient);
+      }
+    }
+
+    console.log('recipientMap size:', recipientMap.size);
+
+    const monthMap = {};
 
     appointments.forEach(app => {
-      const startDT = DateTime.fromJSDate(app.start);
-      const finishDT = DateTime.fromJSDate(app.finish);
-      if (!startDT.isValid || !finishDT.isValid) return;
-
-      const durationHours = finishDT.diff(startDT, 'hours').hours;
-      const monthKey = startDT.toFormat('yyyy-MM');
+      const start = new Date(app.start);
       const status = (app.status || 'unknown').toLowerCase();
+      const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
 
-      if (!grouped[monthKey]) grouped[monthKey] = {};
-      if (!grouped[monthKey][status]) grouped[monthKey][status] = 0;
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = { statuses: {}, students: new Set() };
+      }
 
-      grouped[monthKey][status] += durationHours;
+      // Count by status
+      monthMap[monthKey].statuses[status] = (monthMap[monthKey].statuses[status] || 0) + 1;
+
+      // DEBUG: Test recipient matching
+      const appIdStr = String(app._id);
+      let recipientId = recipientMap.get(appIdStr);
+      if (!recipientId) {
+        // Fallback brute-force match
+        for (let [k, v] of recipientMap.entries()) {
+          if (k == appIdStr) {
+            recipientId = v;
+            break;
+          }
+        }
+      }
+
+      if (!recipientId) {
+        console.log(`❌ No recipient found for appointment ${appIdStr}`);
+      } else {
+        console.log(`✅ Recipient found for appointment ${appIdStr}: ${recipientId}`);
+        monthMap[monthKey].students.add(recipientId);
+      }
     });
 
-    const allMonths = Object.keys(grouped).sort();
-    const allStatuses = [...new Set(allMonths.flatMap(month => Object.keys(grouped[month])))];
+    const months = Object.keys(monthMap).sort();
+    const allStatuses = [...new Set(appointments.map(app => (app.status || 'unknown').toLowerCase()))];
 
-    const result = allStatuses.map(status => ({
+    const statusData = allStatuses.map(status => ({
       status,
-      data: allMonths.map(month => grouped[month][status] || 0)
+      data: months.map(m => monthMap[m].statuses[status] || 0)
     }));
 
-    res.json({ months: allMonths, statuses: result });
+    const uniqueStudents = months.map(m => monthMap[m].students.size);
+
+    res.json({
+      months,
+      statuses: statusData,
+      uniqueStudents
+    });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error generating appointment chart data');
+    console.error('❌ Error in /by-month route:', err);
+    res.status(500).send('Error aggregating appointment data');
   }
 });
+
+
 
 // 📊 Commission by Job (Pareto with Month)
 router.get('/commission-by-job', async (req, res) => {
