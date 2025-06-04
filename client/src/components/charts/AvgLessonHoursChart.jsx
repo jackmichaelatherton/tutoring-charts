@@ -18,7 +18,7 @@ const AvgLessonHoursChart = ({ months, data, filteredMonths }) => {
       {
         label: 'Avg hours per student',
         data: filteredData,
-        backgroundColor: '#6366F1',
+        backgroundColor: '#c9cad6',
         barPercentage: 0.8,
         categoryPercentage: 0.7,
       },

@@ -16,7 +16,7 @@ export default function UniqueStudentsChart({ uniqueStudentsData, filteredMonths
           const idx = uniqueStudentsData.months.indexOf(m);
           return idx >= 0 ? uniqueStudentsData.data[idx] : 0;
         }),
-        backgroundColor: '#34D399',
+        backgroundColor: '#c9cad6',
         barPercentage: 0.8,
         categoryPercentage: 0.7,
       },
