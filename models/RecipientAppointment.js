@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const RecipientAppointmentSchema = new mongoose.Schema({
-  appointment: Number, // appointment ID
+  id: { type: String, required: true }, // ✅ Add this line
+  appointment: Number, // TutorCruncher appointment ID
   recipient: Number,
   recipient_name: String,
   paying_client: Number,

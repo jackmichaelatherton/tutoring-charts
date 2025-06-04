@@ -25,8 +25,8 @@ export default function UniqueStudentsChart({ uniqueStudentsData, filteredMonths
 
   return (
     <section id="unique-students">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
-        Unique Students per Month
+      <h2 className="text-lg font-semibold mb-2">
+        Number of students
       </h2>
       <Bar data={dataset} options={createBarOptions('Students', (val) => `${val}`)} />
     </section>

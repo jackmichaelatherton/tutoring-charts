@@ -30,7 +30,7 @@ export default function AvgCommissionRateChart({ commissionRateData, isMonthInRa
 
   return (
     <section id="avg-commission">
-      <h2 className="text-xl font-semibold text-gray-800 text-center mb-4">
+      <h2 className="text-lg font-semibold mb-2">
         Average commission rate
       </h2>
       <Line
