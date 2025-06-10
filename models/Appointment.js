@@ -6,8 +6,10 @@ const AppointmentSchema = new mongoose.Schema({
   finish: Date,
   units: String,
   topic: String,
-  location: String,
+  location: mongoose.Schema.Types.Mixed, // Accepts object, string, or null
+  extra_attrs: [mongoose.Schema.Types.Mixed],
   rcras: [{
+    appointment: Number,
     recipient: Number,
     recipient_name: String,
     paying_client: Number,
@@ -18,7 +20,8 @@ const AppointmentSchema = new mongoose.Schema({
   student: Number,
   cjas: [{
     contractor: Number,
-    contractor_name: String,
+    name: String, // matches API field
+    contractor_name: String, // for compatibility
     pay_rate: String
   }],
   status: String,
@@ -34,7 +37,11 @@ const AppointmentSchema = new mongoose.Schema({
     status: String,
     url: String
   },
-  charge_type: String
+  charge_type: String,
+  client_rate: String, // For snapshotting rates at sync
+  tutor_rate: String,  // For snapshotting rates at sync
+  is_deleted: Boolean,
+  url: String // API URL for reference
 }, { timestamps: true });
 
 module.exports = mongoose.model('Appointment', AppointmentSchema);
