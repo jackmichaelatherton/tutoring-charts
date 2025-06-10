@@ -9,13 +9,17 @@ function extractRates(app) {
   const rcra = Array.isArray(app.rcras) && app.rcras.length > 0 && typeof app.rcras[0] === 'object' && !Array.isArray(app.rcras[0])
     ? app.rcras[0]
     : null;
-
   const cja = Array.isArray(app.cjas) && app.cjas.length > 0 && typeof app.cjas[0] === 'object' && !Array.isArray(app.cjas[0])
     ? app.cjas[0]
     : null;
 
-  const clientRate = parseFloat(rcra?.charge_rate) || parseFloat(app.service?.dft_charge_rate || 0);
-  const tutorRate = parseFloat(cja?.pay_rate) || parseFloat(app.service?.dft_contractor_rate || 0);
+  // Fallback to service default if not present on appointment
+  const clientRate = rcra?.charge_rate != null
+    ? parseFloat(rcra.charge_rate)
+    : parseFloat(app.service?.dft_charge_rate || 0);
+  const tutorRate = cja?.pay_rate != null
+    ? parseFloat(cja.pay_rate)
+    : parseFloat(app.service?.dft_contractor_rate || 0);
 
   return { clientRate, tutorRate };
 }
@@ -28,14 +32,18 @@ router.get('/total-commission-by-month', async (req, res) => {
 
     appointments.forEach(app => {
       const start = DateTime.fromJSDate(app.start);
-      if (!start.isValid) return;
+      const finish = DateTime.fromJSDate(app.finish);
+      if (!start.isValid || !finish.isValid) return;
+
+      const duration = finish.diff(start, 'hours').hours;
+      if (!duration || duration <= 0) return;
 
       const month = start.toFormat('yyyy-MM');
       const status = (app.status || 'unknown').toLowerCase();
       const { clientRate, tutorRate } = extractRates(app);
 
       if (!clientRate || !tutorRate) return;
-      const commission = clientRate - tutorRate;
+      const commission = (clientRate - tutorRate) * duration;
 
       if (!grouped[month]) grouped[month] = {};
       if (!grouped[month][status]) grouped[month][status] = 0;
@@ -116,6 +124,7 @@ router.get('/by-month', async (req, res) => {
     const appointments = await Appointment.find();
     const recipientAppointments = await RecipientAppointment.find();
 
+    // Map appointment.id to recipient
     const recipientMap = new Map();
     for (const ra of recipientAppointments) {
       if (ra.appointment && ra.recipient) {
@@ -128,7 +137,8 @@ router.get('/by-month', async (req, res) => {
     appointments.forEach(app => {
       const status = (app.status || 'unknown').toLowerCase();
       const start = new Date(app.start);
-      const durationHours = (new Date(app.finish) - new Date(app.start)) / 1000 / 60 / 60;
+      const finish = new Date(app.finish);
+      const durationHours = (finish - start) / 1000 / 60 / 60;
       const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthMap[monthKey]) {
@@ -139,10 +149,15 @@ router.get('/by-month', async (req, res) => {
         };
       }
 
-      // Count statuses
+      // Skip invalid or zero/negative durations
+      if (!durationHours || durationHours <= 0 || isNaN(durationHours)) {
+        return;
+      }
+
+      // Count of appointments per status
       monthMap[monthKey].statuses[status] = (monthMap[monthKey].statuses[status] || 0) + 1;
 
-      // Lesson hours per status
+      // Sum of lesson hours per status
       monthMap[monthKey].lessonHoursPerStatus[status] =
         (monthMap[monthKey].lessonHoursPerStatus[status] || 0) + durationHours;
 
@@ -159,11 +174,13 @@ router.get('/by-month', async (req, res) => {
     const months = Object.keys(monthMap).sort();
     const allStatuses = [...new Set(appointments.map(app => (app.status || 'unknown').toLowerCase()))];
 
+    // Count of appointments per status/month (for legacy charts)
     const statuses = allStatuses.map(status => ({
       status,
       data: months.map(m => monthMap[m]?.statuses[status] || 0)
     }));
 
+    // Sum of lesson hours per status/month (for LessonHoursChart)
     const lessonHoursPerMonthRaw = months.map(month => {
       const obj = {};
       for (const status of allStatuses) {
@@ -172,6 +189,7 @@ router.get('/by-month', async (req, res) => {
       return obj;
     });
 
+    // Unique students per status/month
     const studentMapPerMonthRaw = months.map(month => {
       const obj = {};
       for (const status of allStatuses) {
@@ -181,11 +199,11 @@ router.get('/by-month', async (req, res) => {
       }
       return obj;
     });
-    
+
     res.json({
       months,
-      statuses,
-      lessonHoursPerMonthRaw,
+      statuses, // count of appointments per status/month
+      lessonHoursPerMonthRaw, // sum of lesson hours per status/month
       studentMapPerMonthRaw
     });
 
@@ -249,8 +267,6 @@ router.get('/commission-by-job', async (req, res) => {
 });
 
 
-
-
 router.get('/complete-commission-by-month', async (req, res) => {
   try {
     const appointments = await Appointment.find();
@@ -258,7 +274,8 @@ router.get('/complete-commission-by-month', async (req, res) => {
 
     appointments.forEach(app => {
       const start = DateTime.fromJSDate(app.start);
-      if (!start.isValid) return;
+      const finish = DateTime.fromJSDate(app.finish);
+      if (!start.isValid || !finish.isValid) return;
 
       const status = (app.status || 'unknown').toLowerCase();
       if (status !== 'complete') return;
@@ -270,7 +287,10 @@ router.get('/complete-commission-by-month', async (req, res) => {
 
       if (!clientRate || !tutorRate) return;
 
-      const commission = clientRate - tutorRate;
+      const duration = finish.diff(start, 'hours').hours;
+      if (!duration || duration <= 0) return;
+
+      const commission = (clientRate - tutorRate) * duration;
       const month = start.toFormat('yyyy-MM');
 
       grouped[month] = (grouped[month] || 0) + commission;

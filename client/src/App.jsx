@@ -227,16 +227,16 @@ function App() {
 
     const filteredAppointmentData = {
       labels: formattedLabels,
-      datasets: rawData
-        .filter(d => selectedStatuses.includes(d.status))
-        .map(d => ({
-          label: d.status,
-          data: d.data.slice(startIdx, endIdx + 1),
-          backgroundColor: getColor(d.status),
-          barPercentage: 0.8,
-          categoryPercentage: 0.7,
-          stack: 'lesson-hours'
-        }))
+      datasets: selectedStatuses.map(status => ({
+        label: status,
+        data: lessonHoursPerMonthRaw
+          .slice(startIdx, endIdx + 1)
+          .map(monthObj => monthObj[status] || 0),
+        backgroundColor: getColor(status),
+        barPercentage: 0.8,
+        categoryPercentage: 0.7,
+        stack: 'lesson-hours'
+      }))
     };
 
     const validRange = startIdx >= 0 && endIdx >= 0 && endIdx >= startIdx;
