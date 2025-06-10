@@ -80,6 +80,21 @@ router.get('/sync-all', async (req, res) => {
             continue;
           }
 
+          if (key === 'appointments') {
+            // If rcras/cjas are missing or empty, store the current service rates as a snapshot
+            if ((!entry.rcras || entry.rcras.length === 0) && entry.service) {
+              entry.client_rate = entry.service.dft_charge_rate;
+              entry.tutor_rate = entry.service.dft_contractor_rate;
+            }
+            // Optionally, if rcras/cjas exist, store those rates as well for redundancy
+            if (entry.rcras && entry.rcras[0]?.charge_rate) {
+              entry.client_rate = entry.rcras[0].charge_rate;
+            }
+            if (entry.cjas && entry.cjas[0]?.pay_rate) {
+              entry.tutor_rate = entry.cjas[0].pay_rate;
+            }
+          }
+
           // 📝 Special handling for reports
           if (key === 'reports' && Array.isArray(entry.extra_attrs)) {
             for (const attr of entry.extra_attrs) {
