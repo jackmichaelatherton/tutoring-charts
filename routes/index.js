@@ -7,6 +7,7 @@ router.use('/adhoc', require('./api/adhoc'));
 router.use('/xero', require('./api/xero'));
 router.use('/income', require('./api/income'));
 router.use('/clients', require('./api/clients'));
+router.use('/recipients', require('./api/recipients'));
 
 // Fetch TutorCruncher API
 const { fetchAllPages } = require('../services/tutorcruncher-service');
