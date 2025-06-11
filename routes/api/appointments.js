@@ -83,7 +83,7 @@ router.get('/avg-commission-by-month', async (req, res) => {
       const { clientRate, tutorRate } = extractRates(app);
       if (!clientRate || !tutorRate) return;
 
-      const commission = clientRate - tutorRate;
+      const commission = (clientRate - tutorRate) * duration; // <-- fix here
       const month = start.toFormat('yyyy-MM');
       const status = (app.status || 'unknown').toLowerCase();
 
