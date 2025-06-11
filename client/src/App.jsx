@@ -22,6 +22,8 @@
   import CommissionByJobChart from './components/charts/CommissionByJobChart';
   import UniqueStudentsChart from './components/charts/UniqueStudentsChart';
   import AvgLessonHoursChart from './components/charts/AvgLessonHoursChart';
+  import EnquiriesChart from './components/charts/EnquiriesChart';
+
 
   ChartJS.register(
     CategoryScale,
@@ -114,6 +116,7 @@ function App() {
   const [avgLessonHoursData, setAvgLessonHoursData] = useState({ months: [], data: [] });
   const [lessonHoursPerMonthRaw, setLessonHoursPerMonthRaw] = useState([]);
   const [studentMapPerMonthRaw, setStudentMapPerMonthRaw] = useState([]);
+  const [enquiriesData, setEnquiriesData] = useState({ months: [], counts: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
@@ -140,9 +143,10 @@ function App() {
       axios.get('/api/adhoc/adhoc-revenue-by-month'),
       axios.get('/api/appointments/complete-commission-by-month'),
       axios.get('/api/appointments/commission-by-job'),
-      axios.get('/api/last-synced')
+      axios.get('/api/last-synced'),
+      axios.get('/api/clients/enquiries-by-month')
     ])
-      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, , syncRes]) => { //add jobRes back in here if re-adding the adhoc charges chart
+      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, , syncRes, enquiriesRes]) => { //add jobRes back in here if re-adding the adhoc charges chart
         const byMonthData = byMonthRes.data;
 
         setMonths(byMonthData.months);
@@ -165,6 +169,7 @@ function App() {
         setCommissionData(completeCommRes.data);
         // setCommissionByJobData(jobRes.data);
         setLastSynced(syncRes.data.lastSynced);
+        setEnquiriesData(enquiriesRes.data);
       })
       .catch((err) => {
         console.error('❌ Error loading dashboard data:', err);
@@ -183,6 +188,8 @@ function App() {
       const allStudents = selectedStatuses.flatMap(status => entry[status] || []);
       return new Set(allStudents).size;
     });
+
+    
 
     const updatedAvgLessonHours = lessonHoursPerMonthRaw.map((entry, idx) => {
       const totalHours = selectedStatuses.reduce(
@@ -239,6 +246,34 @@ function App() {
       }))
     };
 
+    const filteredEnquiries = {
+      months: [],
+      counts: []
+    };
+
+    if (enquiriesData.months && enquiriesData.counts) {
+      enquiriesData.months.forEach((month, idx) => {
+        if (isMonthInRange(month)) {
+          filteredEnquiries.months.push(month);
+          filteredEnquiries.counts.push(enquiriesData.counts[idx]);
+        }
+      });
+    }
+
+    const filteredEnquiriesData = {
+      labels: filteredEnquiries.months.map(m => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy')),
+      datasets: [
+        {
+          label: 'Enquiries',
+          data: filteredEnquiries.counts,
+          backgroundColor: '#34D399',      // <-- Bar color
+          borderRadius: 0,                 // <-- Bar corner radius
+          barPercentage: 0.8,              // <-- Bar width (relative)
+          categoryPercentage: 0.7,         // <-- Bar width (relative)
+        },
+      ],
+    };
+
     const validRange = startIdx >= 0 && endIdx >= 0 && endIdx >= startIdx;
 
     if (isLoading) {
@@ -273,6 +308,7 @@ function App() {
                 { label: 'Income', id: 'income' },
                 { label: 'Commission', id: 'commission' },
                 { label: 'Lesson hours', id: 'lesson-hours' },
+                { label: 'Number of students', id: 'number-of-students' },
               ].map(({ label, id }) => (
                 <button
                   key={id}
@@ -424,6 +460,17 @@ function App() {
                   months={avgLessonHoursData.months}
                   data={avgLessonHoursData.data}
                   filteredMonths={filteredMonths}
+                />
+              </div>
+            </section>
+
+            <section id="number-of-students">
+              <h2 className="text-2xl font-bold mb-4">
+                Number of students = Number of starts x Duration ... histogram required ... showing enquiries for now
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <EnquiriesChart
+                  filteredEnquiriesData={filteredEnquiriesData}
                 />
               </div>
             </section>
