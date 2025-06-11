@@ -69,7 +69,7 @@ router.get('/total-commission-by-month', async (req, res) => {
 // 📈 Average Commission Rate by Month
 router.get('/avg-commission-by-month', async (req, res) => {
   try {
-    const appointments = await Appointment.find();
+    const appointments = await Appointment.find().limit(100);
     const grouped = {};
 
     appointments.forEach(app => {
