@@ -45,7 +45,7 @@ export default function StartsFinishesChart({ chartData }) {
         Student Starts & Finishes per Month
       </h2>
       <h4 className="text-sm text-gray-500 mb-6">
-        Start = First completed lesson; Finish = No completed lesson in 4 wks (date is last lesson date)
+        Start = First completed lesson; Finish = No completed lesson in 4 wks (finish date is date of last completed lesson)
       </h4>
       {hasData ? (
         <Bar
