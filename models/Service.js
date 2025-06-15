@@ -47,7 +47,8 @@ const ServiceSchema = new mongoose.Schema({
   sales_codes: mongoose.Schema.Types.Mixed,
   sr_premium: mongoose.Schema.Types.Mixed,
   status: String,
-  total_apt_units: Number
+  total_apt_units: Number,
+  url: String,
 }, { timestamps: true });
 
 module.exports = mongoose.model('Service', ServiceSchema);

@@ -8,6 +8,8 @@ router.use('/xero', require('./api/xero'));
 router.use('/income', require('./api/income'));
 router.use('/clients', require('./api/clients'));
 router.use('/recipients', require('./api/recipients'));
+router.use('/opportunities-email', require('./api/opportunities'));
+
 
 // Fetch TutorCruncher API
 const { fetchAllPages } = require('../services/tutorcruncher-service');
