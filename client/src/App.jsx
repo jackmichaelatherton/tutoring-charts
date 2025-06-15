@@ -119,8 +119,12 @@ function App() {
           rawMonths: totalCommRes.data.months,
           statuses: totalCommRes.data.statuses
         });
+
+        // --- Add log here for commission rate data fetch ---
+        console.log('Fetched commission rate data:', avgCommRes.data);
+
         setCommissionRateData({
-          rawMonths: avgCommRes.data.months,
+          months: avgCommRes.data.months,
           statuses: avgCommRes.data.statuses
         });
 
@@ -294,6 +298,39 @@ function App() {
     ],
   };
 
+  // Use the months array from the commission rate endpoint
+  const commissionMonths = commissionRateData?.months || [];
+  const commissionStartIdx = commissionMonths.indexOf(dateRange.start);
+  const commissionEndIdx = commissionMonths.indexOf(dateRange.end);
+
+  let rawMonths = [];
+  let statuses = [];
+
+  console.log('commissionMonths', commissionMonths);
+  console.log('dateRange.start', dateRange.start);
+  console.log('dateRange.end', dateRange.end);
+  console.log('commissionStartIdx', commissionStartIdx);
+  console.log('commissionEndIdx', commissionEndIdx);
+
+  if (
+    commissionRateData &&
+    Array.isArray(commissionRateData.months) &&
+    Array.isArray(commissionRateData.statuses) &&
+    commissionStartIdx >= 0 &&
+    commissionEndIdx >= 0 &&
+    commissionEndIdx >= commissionStartIdx
+  ) {
+    rawMonths = commissionMonths.slice(commissionStartIdx, commissionEndIdx + 1);
+    statuses = commissionRateData.statuses.map(statusObj => ({
+      status: statusObj.status,
+      data: statusObj.data.slice(commissionStartIdx, commissionEndIdx + 1)
+    }));
+  }
+
+  const avgCommissionChartData = { rawMonths, statuses };
+
+  console.log('avgCommissionChartData', avgCommissionChartData);
+
   const validRange = startIdx >= 0 && endIdx >= 0 && endIdx >= startIdx;
 
   if (isLoading) {
@@ -311,6 +348,8 @@ function App() {
       </div>
     );
   }
+
+  console.log('avgCommissionChartData', avgCommissionChartData);
 
   return (
     <div className="flex">
@@ -451,7 +490,7 @@ function App() {
                   filteredAppointmentData={filteredAppointmentData}
                 />
                 <AvgCommissionRateChart
-                  commissionRateData={commissionRateData}
+                  commissionRateData={avgCommissionChartData}
                   isMonthInRange={isMonthInRange}
                   startIdx={startIdx}
                   endIdx={endIdx}
@@ -487,7 +526,7 @@ function App() {
             <h2 className="text-2xl font-bold mb-4">
               Number of students ≈ Net student start rate x Duration
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 gap-12">
               <StartsFinishesChart chartData={startsFinishesChartData} />
               <EnquiriesChart
                 filteredEnquiriesData={filteredEnquiriesData}

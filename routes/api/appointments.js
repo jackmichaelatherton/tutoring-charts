@@ -24,6 +24,18 @@ function extractRates(app) {
   return { clientRate, tutorRate };
 }
 
+// Utility to get all months between start and end (inclusive)
+function getAllMonthsInRange(start, end) {
+  const result = [];
+  let current = DateTime.fromFormat(start, 'yyyy-MM');
+  const last = DateTime.fromFormat(end, 'yyyy-MM');
+  while (current <= last) {
+    result.push(current.toFormat('yyyy-MM'));
+    current = current.plus({ months: 1 });
+  }
+  return result;
+}
+
 // 📊 Total Commission by Month
 router.get('/total-commission-by-month', async (req, res) => {
   try {
@@ -69,8 +81,30 @@ router.get('/total-commission-by-month', async (req, res) => {
 // 📈 Average Commission Rate by Month
 router.get('/avg-commission-by-month', async (req, res) => {
   try {
-    const appointments = await Appointment.find().limit(100);
+    // Optionally get range from query, else use all data range
+    let { start, end } = req.query;
+    let minMonth, maxMonth;
+
+    // Find min/max months if not provided
+    if (!start || !end) {
+      const first = await Appointment.findOne().sort({ start: 1 });
+      const last = await Appointment.findOne().sort({ start: -1 });
+      minMonth = first ? DateTime.fromJSDate(first.start).toFormat('yyyy-MM') : DateTime.now().toFormat('yyyy-MM');
+      maxMonth = last ? DateTime.fromJSDate(last.start).toFormat('yyyy-MM') : DateTime.now().toFormat('yyyy-MM');
+      start = start || minMonth;
+      end = end || maxMonth;
+    }
+
+    const allMonths = getAllMonthsInRange(start, end);
+
+    // Fetch all appointments in the range
+    const appointments = await Appointment.find({
+      start: { $gte: new Date(`${start}-01`), $lte: new Date(`${end}-31`) }
+    });
+
+    // Group by month and status
     const grouped = {};
+    const allStatusesSet = new Set();
 
     appointments.forEach(app => {
       const start = DateTime.fromJSDate(app.start);
@@ -83,38 +117,36 @@ router.get('/avg-commission-by-month', async (req, res) => {
       const { clientRate, tutorRate } = extractRates(app);
       if (!clientRate || !tutorRate) return;
 
-      const commission = (clientRate - tutorRate) * duration; // <-- fix here
+      const commission = (clientRate - tutorRate) * duration;
       const month = start.toFormat('yyyy-MM');
       const status = (app.status || 'unknown').toLowerCase();
 
+      allStatusesSet.add(status);
+
       if (!grouped[month]) grouped[month] = {};
-      if (!grouped[month][status]) {
-        grouped[month][status] = { totalCommission: 0, totalHours: 0 };
-      }
+      if (!grouped[month][status]) grouped[month][status] = { totalCommission: 0, totalHours: 0 };
 
       grouped[month][status].totalCommission += commission;
       grouped[month][status].totalHours += duration;
     });
 
-    const allMonths = Object.keys(grouped).sort();
-    const allStatuses = [...new Set(allMonths.flatMap(month => Object.keys(grouped[month])))];
+    // Get all statuses seen in the data
+    const allStatuses = Array.from(allStatusesSet);
 
-    const result = allStatuses.map(status => ({
+    // Fill missing months/statuses with zeroes
+    const statuses = allStatuses.map(status => ({
       status,
-      data: allMonths.map(month => {
-        const entry = grouped[month][status];
-        if (!entry) return { totalCommission: 0, totalHours: 0 };
-        return {
-          totalCommission: +entry.totalCommission.toFixed(2),
-          totalHours: +entry.totalHours.toFixed(2)
-        };
-      })
+      data: allMonths.map(month =>
+        (grouped[month] && grouped[month][status])
+          ? grouped[month][status]
+          : { totalCommission: 0, totalHours: 0 }
+      )
     }));
 
-    res.json({ months: allMonths, statuses: result });
+    res.json({ months: allMonths, statuses });
   } catch (err) {
-    console.error('❌ Error calculating average commission rate:', err);
-    res.status(500).send('Error calculating average commission rate');
+    console.error(err);
+    res.status(500).send('Error calculating average commission');
   }
 });
 
