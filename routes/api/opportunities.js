@@ -1,20 +1,43 @@
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
-const Service = require('../../models/Service');
+
+require('dotenv').config();
+
+const API_BASE_URL = process.env.BASE_URL;
+const API_TOKEN = process.env.TUTORCRUNCHER_API_TOKEN;
 
 router.get('/', async (req, res) => {
   try {
-    const services = await Service.find({
-      status: 'available'
-    }).sort({ createdAt: -1 });
+    const allServices = await fetchAllTutorCruncherServices();
+    const availableServices = allServices.filter(svc => svc.status === 'available');
 
-    const html = renderOpportunitiesEmail(services);
+    const html = renderOpportunitiesEmail(availableServices);
     res.send(html);
   } catch (error) {
-    console.error(error);
+    console.error('❌ Error fetching TutorCruncher services:', error.message);
     res.status(500).send('Something went wrong');
   }
 });
+
+async function fetchAllTutorCruncherServices() {
+  let services = [];
+  let nextUrl = `${API_BASE_URL}/services/`;
+
+  while (nextUrl) {
+    const response = await axios.get(nextUrl, {
+      headers: {
+        Authorization: `Token ${API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    services = services.concat(response.data.results);
+    nextUrl = response.data.next;
+  }
+
+  return services;
+}
 
 function renderOpportunitiesEmail(services) {
   const intro = `
@@ -25,8 +48,8 @@ function renderOpportunitiesEmail(services) {
   `;
 
   const jobs = services.map(svc => {
-    const name = svc.name.replace(/^\[[^\]]+\]\s*/, ''); // strip [XX] codes
-    const rate = svc.dft_contractor_rate;
+    const name = svc.name.replace(/^\[[^\]]+\]\s*/, '');
+    const rate = svc.dft_contractor_rate ? Math.round(parseFloat(svc.dft_contractor_rate)) : 'N/A';
     return `<p>${name} – £${rate}/hr</p>`;
   }).join('\n');
 
@@ -40,6 +63,5 @@ function renderOpportunitiesEmail(services) {
 
   return intro + jobs + outro;
 }
-
 
 module.exports = router;
