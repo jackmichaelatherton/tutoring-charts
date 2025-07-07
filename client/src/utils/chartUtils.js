@@ -24,7 +24,12 @@ export const getColor = (status) => {
   return palette[status] || '#D1D5DB';
 };
 
-export const createBarOptions = (title, valueFormatter = (val) => val, stacked = false) => ({
+export const createBarOptions = (
+  title,
+  valueFormatter = (val) => val,
+  stacked = false,
+  yAxisOverride = {}
+) => ({
   responsive: true,
   plugins: {
     legend: stacked
@@ -56,11 +61,13 @@ export const createBarOptions = (title, valueFormatter = (val) => val, stacked =
         font: { size: 14 },
       },
       grid: { color: '#E5E7EB' },
+      ...yAxisOverride, // 👈 Add this
     },
     x: {
-      stacked: true,
+      stacked: stacked,
       ticks: { color: '#4B5563' },
       grid: { color: '#F3F4F6' },
     },
+    
   },
 });
