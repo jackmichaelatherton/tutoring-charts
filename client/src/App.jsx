@@ -23,6 +23,7 @@ import CommissionByJobChart from './components/charts/CommissionByJobChart';
 import UniqueStudentsChart from './components/charts/UniqueStudentsChart';
 import AvgLessonHoursChart from './components/charts/AvgLessonHoursChart';
 import EnquiriesChart from './components/charts/EnquiriesChart';
+import ConversionChart from './components/charts/EnquiryConversionChart';
 import StartsFinishesChart from './components/charts/StartsFinishesChart';
 
 ChartJS.register(
@@ -74,6 +75,7 @@ function App() {
   const [lessonHoursPerMonthRaw, setLessonHoursPerMonthRaw] = useState([]);
   const [studentMapPerMonthRaw, setStudentMapPerMonthRaw] = useState([]);
   const [enquiriesData, setEnquiriesData] = useState({ months: [], counts: [] });
+  const [conversionData, setConversionData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [startsData, setStartsData] = useState({ months: [], counts: [] });
@@ -104,10 +106,11 @@ function App() {
       axios.get('/api/appointments/commission-by-job'),
       axios.get('/api/last-synced'),
       axios.get('/api/clients/enquiries-by-month'),
+      axios.get('/api/clients/enquiry-conversion-by-month'),
       axios.get('/api/recipients/starts-by-month'),
       axios.get('/api/recipients/finishes-by-month')
     ])
-      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, , syncRes, enquiriesRes, startsRes, finishesRes]) => {
+      .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, , syncRes, enquiriesRes, conversionRes, startsRes, finishesRes]) => {
         const byMonthData = byMonthRes.data;
 
         setMonths(byMonthData.months);
@@ -132,6 +135,7 @@ function App() {
         setCommissionData(completeCommRes.data);
         setLastSynced(syncRes.data.lastSynced);
         setEnquiriesData(enquiriesRes.data);
+        setConversionData(conversionRes.data);
         setStartsData(startsRes.data);
         setFinishesData(finishesRes.data);
       })
@@ -207,33 +211,34 @@ function App() {
     }))
   };
 
-  const filteredEnquiries = {
-    months: [],
-    counts: []
-  };
-
-  if (enquiriesData.months && enquiriesData.counts) {
-    enquiriesData.months.forEach((month, idx) => {
-      if (isMonthInRange(month)) {
-        filteredEnquiries.months.push(month);
-        filteredEnquiries.counts.push(enquiriesData.counts[idx]);
-      }
-    });
-  }
+  const monthToCount = {};
+  enquiriesData.months.forEach((month, idx) => {
+    monthToCount[month] = enquiriesData.counts[idx];
+  });
 
   const filteredEnquiriesData = {
-    labels: filteredEnquiries.months.map(m => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy')),
+    labels: filteredMonths.map(m => format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy')),
     datasets: [
       {
         label: 'Enquiries',
-        data: filteredEnquiries.counts,
+        data: filteredMonths.map(m => monthToCount[m] || 0),
         backgroundColor: '#34D399',
         borderRadius: 0,
         barPercentage: 0.8,
         categoryPercentage: 0.7,
-      },
-    ],
+      }
+    ]
   };
+
+  const monthToRate = {};
+  conversionData.forEach(({ month, conversionRate }) => {
+    monthToRate[month] = conversionRate;
+  });
+
+  const filteredConversionData = filteredMonths.map(m => ({
+    month: format(parse(m, 'yyyy-MM', new Date()), 'MMM-yy'),
+    conversionRate: monthToRate[m] ?? 0
+  }));
 
   // Build counts by month for starts and finishes
   const startsCountsByMonth = {};
@@ -526,12 +531,23 @@ function App() {
             <h2 className="text-2xl font-bold mb-4">
               Number of students ≈ Net student start rate x Duration
             </h2>
-            <div className="grid grid-cols-1 gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               <StartsFinishesChart chartData={startsFinishesChartData} />
+            </div> 
+          </section>
+
+          <section id="starts">
+            <h2 className="text-2xl font-bold mb-4">
+              Number of starts = Enquiries x Conversion rate
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               <EnquiriesChart
                 filteredEnquiriesData={filteredEnquiriesData}
               />
-            </div>
+              <ConversionChart
+                conversionData={filteredConversionData}
+              />
+            </div> 
           </section>
 
         </div>
