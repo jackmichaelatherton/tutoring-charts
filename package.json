@@ -19,6 +19,7 @@
     "luxon": "^3.6.1",
     "mongoose": "^8.15.0",
     "node-cron": "^4.0.7",
+    "openai": "^5.10.2",
     "xero-node": "^11.1.0"
   },
   "devDependencies": {

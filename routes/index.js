@@ -9,6 +9,7 @@ router.use('/income', require('./api/income'));
 router.use('/clients', require('./api/clients'));
 router.use('/recipients', require('./api/recipients'));
 router.use('/opportunities-email', require('./api/opportunities'));
+router.use('/generate-options-email', require('./api/generateSummary'));
 
 
 // Fetch TutorCruncher API
