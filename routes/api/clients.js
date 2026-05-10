@@ -16,10 +16,18 @@ function postcodeArea(postcode) {
 
 function buildPostcodeQuery(postcodeAreas) {
   if (!Array.isArray(postcodeAreas) || postcodeAreas.length === 0) return {};
-  // Match outward code followed by a space or digit (handles both "SW15 6SY" and "SW156SY")
   const toRegex = area => ({ postcode: { $regex: new RegExp(`^${area}[\\s\\d]`, 'i') } });
-  if (postcodeAreas.length === 1) return toRegex(postcodeAreas[0]);
-  return { $or: postcodeAreas.map(toRegex) };
+  const realAreas = postcodeAreas.filter(a => a !== 'No postcode');
+  const includeNone = postcodeAreas.includes('No postcode');
+  const noneClause = { $or: [{ postcode: null }, { postcode: '' }] };
+  if (includeNone && realAreas.length > 0) {
+    return { $or: [...realAreas.map(toRegex), { postcode: null }, { postcode: '' }] };
+  } else if (includeNone) {
+    return noneClause;
+  } else if (realAreas.length === 1) {
+    return toRegex(realAreas[0]);
+  }
+  return { $or: realAreas.map(toRegex) };
 }
 
 async function computeEnquiriesByMonth(postcodeAreas) {

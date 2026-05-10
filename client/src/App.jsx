@@ -109,7 +109,10 @@ function App() {
       axios.get('/api/clients/map-data'),
     ]).then(([filtersRes, mapRes]) => {
       setAvailableYearGroups(filtersRes.data.yearGroups || []);
-      setAvailablePostcodes(filtersRes.data.postcodeAreas || []);
+      setAvailablePostcodes([
+        { area: 'No postcode', town: '' },
+        ...(filtersRes.data.postcodeAreas || [])
+      ]);
       setMapData(mapRes.data || []);
     }).catch(err => console.error('❌ Error loading filter options:', err));
   }, []);

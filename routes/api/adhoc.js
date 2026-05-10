@@ -18,7 +18,15 @@ async function computeAdHocRevenueByMonth(yearGroups, postcodeAreas) {
     query.year_group = { $in: yearGroups };
   }
   if (Array.isArray(postcodeAreas) && postcodeAreas.length > 0) {
-    query.postcode_area = { $in: postcodeAreas };
+    const realAreas = postcodeAreas.filter(a => a !== 'No postcode');
+    const includeNone = postcodeAreas.includes('No postcode');
+    if (includeNone && realAreas.length > 0) {
+      query.$or = [{ postcode_area: { $in: realAreas } }, { postcode_area: null }];
+    } else if (includeNone) {
+      query.postcode_area = null;
+    } else {
+      query.postcode_area = { $in: realAreas };
+    }
   }
 
   const charges = await AdHocCharge.find(query)
