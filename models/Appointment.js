@@ -41,7 +41,15 @@ const AppointmentSchema = new mongoose.Schema({
   client_rate: String, // For snapshotting rates at sync
   tutor_rate: String,  // For snapshotting rates at sync
   is_deleted: Boolean,
-  url: String // API URL for reference
+  url: String, // API URL for reference
+  year_group: String,
+  postcode_area: String,
+  client_lat: String,
+  client_lng: String,
 }, { timestamps: true });
+
+AppointmentSchema.index({ status: 1 });
+AppointmentSchema.index({ start: 1 });
+AppointmentSchema.index({ status: 1, start: 1 });
 
 module.exports = mongoose.model('Appointment', AppointmentSchema);

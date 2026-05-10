@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import MapPanel from './components/MapPanel';
+import MultiSelect from './components/MultiSelect';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -77,9 +79,19 @@ function App() {
   const [enquiriesData, setEnquiriesData] = useState({ months: [], counts: [] });
   const [conversionData, setConversionData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const isFirstLoad = useRef(true);
   const [startsData, setStartsData] = useState({ months: [], counts: [] });
   const [finishesData, setFinishesData] = useState({ months: [], counts: [] });
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [yearGroupFilter, setYearGroupFilter] = useState([]);
+  const [postcodeFilter, setPostcodeFilter] = useState([]);
+  const [availableYearGroups, setAvailableYearGroups] = useState([]);
+  const [availablePostcodes, setAvailablePostcodes] = useState([]);
+  const [mapData, setMapData] = useState([]);
 
   const today = new Date();
   const defaultEnd = format(today, 'yyyy-MM');
@@ -90,7 +102,26 @@ function App() {
     end: defaultEnd
   });
 
+  // Fetch static data once on mount
   useEffect(() => {
+    Promise.all([
+      axios.get('/api/appointments/filters'),
+      axios.get('/api/clients/map-data'),
+    ]).then(([filtersRes, mapRes]) => {
+      setAvailableYearGroups(filtersRes.data.yearGroups || []);
+      setAvailablePostcodes(filtersRes.data.postcodeAreas || []);
+      setMapData(mapRes.data || []);
+    }).catch(err => console.error('❌ Error loading filter options:', err));
+  }, []);
+
+  const fetchDashboardData = useCallback((yg, pcs) => {
+    const params = {};
+    if (Array.isArray(yg) && yg.length > 0) params.yearGroups = yg.join(',');
+    if (Array.isArray(pcs) && pcs.length > 0) params.postcodeAreas = pcs.join(',');
+
+    setIsFetching(true);
+    setLoadingProgress(0);
+
     const increment = () => {
       setLoadingProgress((prev) => Math.min(prev + Math.random() * 10, 90));
     };
@@ -98,17 +129,17 @@ function App() {
     const progressInterval = setInterval(increment, 200);
 
     Promise.all([
-      axios.get('/api/appointments/by-month'),
-      axios.get('/api/appointments/total-commission-by-month'),
-      axios.get('/api/appointments/avg-commission-by-month'),
-      axios.get('/api/adhoc/adhoc-revenue-by-month'),
-      axios.get('/api/appointments/complete-commission-by-month'),
-      axios.get('/api/appointments/commission-by-job'),
+      axios.get('/api/appointments/by-month', { params }),
+      axios.get('/api/appointments/total-commission-by-month', { params }),
+      axios.get('/api/appointments/avg-commission-by-month', { params }),
+      axios.get('/api/adhoc/adhoc-revenue-by-month', { params }),
+      axios.get('/api/appointments/complete-commission-by-month', { params }),
+      axios.get('/api/appointments/commission-by-job', { params }),
       axios.get('/api/last-synced'),
-      axios.get('/api/clients/enquiries-by-month'),
-      axios.get('/api/clients/enquiry-conversion-by-month'),
-      axios.get('/api/recipients/starts-by-month'),
-      axios.get('/api/recipients/finishes-by-month')
+      axios.get('/api/clients/enquiries-by-month', { params: params.postcodeAreas ? { postcodeAreas: params.postcodeAreas } : {} }),
+      axios.get('/api/clients/enquiry-conversion-by-month', { params: params.postcodeAreas ? { postcodeAreas: params.postcodeAreas } : {} }),
+      axios.get('/api/recipients/starts-by-month', { params }),
+      axios.get('/api/recipients/finishes-by-month', { params }),
     ])
       .then(([byMonthRes, totalCommRes, avgCommRes, adHocRes, completeCommRes, , syncRes, enquiriesRes, conversionRes, startsRes, finishesRes]) => {
         const byMonthData = byMonthRes.data;
@@ -145,9 +176,20 @@ function App() {
       .finally(() => {
         clearInterval(progressInterval);
         setLoadingProgress(100);
-        setTimeout(() => setIsLoading(false), 300);
+        setTimeout(() => {
+          setIsLoading(false);
+          setIsFetching(false);
+        }, 300);
       });
   }, []);
+
+  useEffect(() => {
+    if (isFirstLoad.current) {
+      setIsLoading(true);
+      isFirstLoad.current = false;
+    }
+    fetchDashboardData(yearGroupFilter, postcodeFilter);
+  }, [yearGroupFilter, postcodeFilter, fetchDashboardData]);
 
   useEffect(() => {
     if (!lessonHoursPerMonthRaw.length || !studentMapPerMonthRaw.length) return;
@@ -341,12 +383,6 @@ function App() {
   if (isLoading) {
     return (
       <div className="relative w-full h-screen bg-gray-100">
-        <div className="fixed top-0 left-0 w-full h-1 bg-gray-200 z-50">
-          <div
-            className="h-full bg-blue-600 transition-all duration-200"
-            style={{ width: `${loadingProgress}%` }}
-          />
-        </div>
         <div className="flex items-center justify-center h-full">
           <p className="text-gray-500 text-sm">Loading dashboard…</p>
         </div>
@@ -357,15 +393,24 @@ function App() {
   console.log('avgCommissionChartData', avgCommissionChartData);
 
   return (
-    <div className="flex">
-      {/* Right Sidebar */}
-      <aside className="w-64 p-4 bg-white shadow-lg fixed top-0 right-0 h-screen border-l border-gray-200 flex flex-col justify-between">
-        {/* Top: Section Selector */}
-        <div>
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold">Section</h3>
-          </div>
-          <nav className="space-y-2">
+    <div className="flex min-h-screen bg-gray-100">
+
+      {/* Progress bar — shown during filter-change fetches */}
+      <div className={`fixed top-0 left-0 w-full h-1 bg-gray-200 z-50 transition-opacity duration-300 ${isFetching ? 'opacity-100' : 'opacity-0'}`}>
+        <div
+          className="h-full bg-blue-500 transition-all duration-200"
+          style={{ width: `${loadingProgress}%` }}
+        />
+      </div>
+
+      {/* Left Sidebar — Section nav */}
+      <aside
+        className="fixed top-0 left-0 h-screen bg-white border-r border-gray-200 shadow-sm z-10 flex flex-col transition-all duration-200 overflow-hidden"
+        style={{ width: leftOpen ? 192 : 0 }}
+      >
+        <div className="p-4 flex-1 overflow-y-auto" style={{ width: 192 }}>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Sections</p>
+          <nav className="space-y-1">
             {[
               { label: 'Total income', id: 'total-income' },
               { label: 'Income', id: 'income' },
@@ -375,78 +420,30 @@ function App() {
             ].map(({ label, id }) => (
               <button
                 key={id}
-                onClick={() => {
-                  const el = document.getElementById(id);
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="text-left w-full text-blue-600 hover:underline text-sm"
+                onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-left w-full text-blue-600 hover:underline text-sm py-1"
               >
                 {label}
               </button>
             ))}
           </nav>
         </div>
-
-        {/* Bottom: Filters + Last Updated */}
-        <div>
-          {/* Date Pickers First */}
-          <div className="space-y-4 mb-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Dates</h3>
-            </div>
-            <label className="block text-sm text-gray-700">
-              Start Month:
-              <input
-                type="month"
-                value={dateRange.start}
-                onChange={(e) =>
-                  setDateRange((prev) => ({ ...prev, start: e.target.value }))
-                }
-                className="mt-1 w-full border rounded px-2 py-1"
-              />
-            </label>
-            <label className="block text-sm text-gray-700">
-              End Month:
-              <input
-                type="month"
-                value={dateRange.end}
-                onChange={(e) =>
-                  setDateRange((prev) => ({ ...prev, end: e.target.value }))
-                }
-                className="mt-1 w-full border rounded px-2 py-1"
-              />
-            </label>
-          </div>
-
-          {/* Then Filters */}
-          <div className="space-y-2 mb-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Filters</h3>
-            </div>
-            {allStatuses.map(status => (
-              <label key={status} className="block text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="mr-2 accent-blue-600"
-                  checked={selectedStatuses.includes(status)}
-                  onChange={() => toggleStatus(status)}
-                />
-                <span className="capitalize">{status}</span>
-              </label>
-            ))}
-          </div>
-
-          {/* Last Updated Timestamp */}
-          {lastSynced && (
-            <p className="text-xs text-gray-400 mt-4">
-              Last updated: {format(new Date(lastSynced), 'PPPp')}
-            </p>
-          )}
-        </div>
       </aside>
 
+      {/* Left sidebar toggle */}
+      <button
+        onClick={() => setLeftOpen(o => !o)}
+        className="fixed top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r shadow-sm px-1 py-3 text-gray-400 hover:text-gray-700 transition-all duration-200"
+        style={{ left: leftOpen ? 192 : 0 }}
+      >
+        {leftOpen ? '‹' : '›'}
+      </button>
+
       {/* Main Dashboard Content */}
-      <main className="flex-1 p-6 pr-[18rem] pl-6 bg-gray-100 font-sans">
+      <main
+        className="flex-1 p-6 bg-gray-100 font-sans transition-all duration-200"
+        style={{ marginLeft: leftOpen ? 192 : 0, marginRight: rightOpen ? 288 : 0 }}
+      >
         <div className="max-w-7xl mx-auto space-y-16 bg-white shadow-xl rounded-xl p-8">
           {commissionData?.data && adHocData?.data && totalCommissionData && (
             <section id="total-income">
@@ -552,6 +549,173 @@ function App() {
 
         </div>
       </main>
+
+      {/* Right sidebar toggle */}
+      <button
+        onClick={() => setRightOpen(o => !o)}
+        className="fixed top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-l shadow-sm px-1 py-3 text-gray-400 hover:text-gray-700 transition-all duration-200"
+        style={{ right: rightOpen ? 288 : 0 }}
+      >
+        {rightOpen ? '›' : '‹'}
+      </button>
+
+      {/* Map modal */}
+      {mapModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setMapModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl p-5 w-[900px] max-w-[95vw]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Select areas on map</h3>
+              <div className="flex items-center gap-3">
+                {postcodeFilter.length > 0 && (
+                  <button
+                    onClick={() => setPostcodeFilter([])}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    Clear all
+                  </button>
+                )}
+                <button
+                  onClick={() => setMapModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-700 text-lg leading-none"
+                  aria-label="Close map"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {postcodeFilter.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {postcodeFilter.map(area => (
+                  <span key={area} className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                    {area}
+                    <button
+                      onClick={() => setPostcodeFilter(prev => prev.filter(a => a !== area))}
+                      className="text-blue-400 hover:text-blue-700 leading-none"
+                      aria-label={`Remove ${area}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <MapPanel
+              mapData={mapData}
+              selectedPostcodes={postcodeFilter}
+              onTogglePostcode={area =>
+                setPostcodeFilter(prev =>
+                  prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
+                )
+              }
+            />
+            <button
+              onClick={() => setMapModalOpen(false)}
+              className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Right Sidebar — Filters */}
+      <aside
+        className="fixed top-0 right-0 h-screen bg-white border-l border-gray-200 shadow-sm z-10 flex flex-col transition-all duration-200 overflow-hidden"
+        style={{ width: rightOpen ? 288 : 0 }}
+      >
+        <div className="p-4 overflow-y-auto flex-1" style={{ width: 288 }}>
+
+          {/* Year Group */}
+          {availableYearGroups.length > 0 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Year group</p>
+              <MultiSelect
+                options={availableYearGroups.map(yg => ({ area: yg, town: '' }))}
+                selected={yearGroupFilter}
+                onChange={setYearGroupFilter}
+                placeholder="Search year groups…"
+              />
+            </div>
+          )}
+
+          {/* Geography multi-select + Map */}
+          {availablePostcodes.length > 0 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Geography</p>
+              <MultiSelect
+                options={availablePostcodes}
+                selected={postcodeFilter}
+                onChange={setPostcodeFilter}
+              />
+              {mapData.length > 0 && (
+                <button
+                  onClick={() => setMapModalOpen(true)}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                >
+                  Select on map
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Date range */}
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Date range</p>
+            <label className="block text-sm text-gray-600 mb-2">
+              Start
+              <input
+                type="month"
+                value={dateRange.start}
+                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </label>
+            <label className="block text-sm text-gray-600">
+              End
+              <input
+                type="month"
+                value={dateRange.end}
+                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </label>
+          </div>
+
+          {/* Appointment status */}
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Status</p>
+            <div className="space-y-1.5">
+              {allStatuses.map(status => (
+                <label key={status} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="w-3.5 h-3.5 rounded accent-blue-600"
+                    checked={selectedStatuses.includes(status)}
+                    onChange={() => toggleStatus(status)}
+                  />
+                  <span className="capitalize">{status}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Last updated */}
+          {lastSynced && (
+            <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+              Last updated: {format(new Date(lastSynced), 'PPPp')}
+            </p>
+          )}
+        </div>
+      </aside>
+
     </div>
   );
 }

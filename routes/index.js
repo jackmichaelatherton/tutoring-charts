@@ -14,6 +14,9 @@ router.use('/generate-options-email', require('./api/generateSummary'));
 
 // Fetch TutorCruncher API
 const { fetchAllPages } = require('../services/tutorcruncher-service');
+const cache = require('../services/cache');
+const { warmCache } = require('../services/cache-warmer');
+const { enrichAll } = require('../services/enrichment');
 
 // Load models
 const Appointment = require('../models/Appointment');
@@ -144,10 +147,64 @@ router.get('/sync-all', async (req, res) => {
       { upsert: true }
     );
 
+    cache.invalidateAll();
     console.log('✅ Background sync complete:', results);
+    await enrichAll();
+    warmCache();
   }, 100);
 });
 
+
+// Fast sync of just recipients + ad hoc charges, then re-enrich
+// Use this instead of sync-all when you only need to fix year_group / postcode_area enrichment
+router.get('/sync-enrichment-data', async (req, res) => {
+  res.json({ message: '🔁 Syncing recipients and ad hoc charges in background.' });
+
+  setTimeout(async () => {
+    const targets = [
+      { key: 'recipients', path: '/recipients/', model: Recipient },
+      { key: 'ad_hoc_charges', path: '/adhoccharges/', model: AdHocCharge },
+    ];
+
+    for (const { key, path, model } of targets) {
+      try {
+        const data = await fetchAllPages(path);
+        let count = 0;
+        for (const entry of data) {
+          if (!entry.id) continue;
+          await model.updateOne(
+            { id: entry.id },
+            { $set: { ...entry, id: entry.id } },
+            { upsert: true }
+          );
+          count++;
+        }
+        console.log(`✅ Synced ${count} ${key}`);
+      } catch (err) {
+        console.error(`❌ Failed syncing ${key}:`, err.message);
+      }
+    }
+
+    cache.invalidateAll();
+    await enrichAll();
+    warmCache();
+    console.log('✅ Enrichment-data sync complete');
+  }, 100);
+});
+
+router.get('/re-enrich', async (req, res) => {
+  res.json({ message: '🔄 Re-enrichment started in background.' });
+  setTimeout(async () => {
+    try {
+      cache.invalidateAll();
+      await enrichAll();
+      warmCache();
+      console.log('✅ Re-enrichment complete');
+    } catch (err) {
+      console.error('❌ Re-enrichment failed:', err);
+    }
+  }, 100);
+});
 
 router.get('/last-synced', async (req, res) => {
   const Meta = require('../models/Meta');

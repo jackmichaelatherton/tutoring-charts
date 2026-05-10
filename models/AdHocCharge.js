@@ -61,7 +61,9 @@ const AdHocChargeSchema = new mongoose.Schema({
     status: String,
     url: String
   },
-  tax_amount: Number
+  tax_amount: Number,
+  year_group: String,
+  postcode_area: String,
 }, { timestamps: true });
 
 module.exports = mongoose.model('AdHocCharge', AdHocChargeSchema);

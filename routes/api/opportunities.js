@@ -1,16 +1,23 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
+const cache = require('../../services/cache');
 
 require('dotenv').config();
 
 const API_BASE_URL = process.env.BASE_URL;
 const API_TOKEN = process.env.TUTORCRUNCHER_API_TOKEN;
+const CACHE_KEY = 'tc:services:available';
 
 router.get('/', async (req, res) => {
   try {
-    const allServices = await fetchAllTutorCruncherServices();
-    const availableServices = allServices.filter(svc => svc.status === 'available');
+    let availableServices = cache.get(CACHE_KEY);
+
+    if (!availableServices) {
+      const allServices = await fetchAllTutorCruncherServices();
+      availableServices = allServices.filter(svc => svc.status === 'available');
+      cache.set(CACHE_KEY, availableServices);
+    }
 
     const html = renderOpportunitiesEmail(availableServices);
     res.send(html);

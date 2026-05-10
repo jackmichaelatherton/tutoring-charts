@@ -43,7 +43,10 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  const { enrichAll } = require('./services/enrichment');
+  const { warmCache } = require('./services/cache-warmer');
+  enrichAll().then(() => warmCache());
 });
 

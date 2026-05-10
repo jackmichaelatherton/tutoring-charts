@@ -140,7 +140,140 @@ async function fetchAllPages(path) {
       await delay(700); // Slightly longer delay for stability
     }
     return fullClients;
-  }  
+  }
+
+  // Special logic for recipients: fetch all IDs, then fetch each instance
+  if (path === '/recipients/' || path === 'recipients/') {
+    let results = [];
+    let url = path;
+
+    while (url) {
+      const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
+      console.log(`→ Fetching: ${fullUrl}`);
+
+      try {
+        const response = await axios.get(fullUrl, {
+          headers: { Authorization: `Token ${TOKEN}` }
+        });
+
+        if (!Array.isArray(response.data.results)) {
+          console.warn(`⚠️ Unexpected response format for ${fullUrl}`);
+          break;
+        }
+
+        results = results.concat(response.data.results);
+        await delay(500);
+        url = response.data.next;
+      } catch (error) {
+        console.error(`❌ TutorCruncher API request failed for ${fullUrl}`);
+        console.error(error.response?.data || error.message);
+        throw error;
+      }
+    }
+
+    const fullRecipients = [];
+    for (const summary of results) {
+      const id = summary.id;
+      if (!id) continue;
+      const instanceUrl = `${BASE_URL}/recipients/${id}/`;
+      console.log(`→ Fetching full recipient: ${instanceUrl}`);
+
+      let attempts = 0;
+      let success = false;
+      while (!success && attempts < 5) {
+        try {
+          const instanceRes = await axios.get(instanceUrl, {
+            headers: { Authorization: `Token ${TOKEN}` }
+          });
+          fullRecipients.push(instanceRes.data);
+          success = true;
+        } catch (err) {
+          attempts++;
+          const isRateLimit = err.response?.status === 429;
+          const isConnReset = err.code === 'ECONNRESET';
+          if (isRateLimit || isConnReset) {
+            const wait = 2000 * attempts;
+            console.warn(
+              `⚠️ ${isRateLimit ? '429 rate limit' : 'ECONNRESET'} for id ${id}, waiting ${wait}ms before retrying (attempt ${attempts})...`
+            );
+            await delay(wait);
+          } else {
+            console.warn(`⚠️ Failed to fetch recipient instance for id ${id}:`, err.message);
+            break;
+          }
+        }
+      }
+      await delay(700);
+    }
+    return fullRecipients;
+  }
+
+  // Special logic for ad hoc charges: fetch all IDs, then fetch each instance
+  // (list endpoint omits client and service sub-objects needed for enrichment)
+  if (path === '/adhoccharges/' || path === 'adhoccharges/') {
+    let results = [];
+    let url = path;
+
+    while (url) {
+      const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
+      console.log(`→ Fetching: ${fullUrl}`);
+
+      try {
+        const response = await axios.get(fullUrl, {
+          headers: { Authorization: `Token ${TOKEN}` }
+        });
+
+        if (!Array.isArray(response.data.results)) {
+          console.warn(`⚠️ Unexpected response format for ${fullUrl}`);
+          break;
+        }
+
+        results = results.concat(response.data.results);
+        await delay(500);
+        url = response.data.next;
+      } catch (error) {
+        console.error(`❌ TutorCruncher API request failed for ${fullUrl}`);
+        console.error(error.response?.data || error.message);
+        throw error;
+      }
+    }
+
+    const fullCharges = [];
+    for (const summary of results) {
+      const id = summary.id;
+      if (!id) continue;
+      const instanceUrl = `${BASE_URL}/adhoccharges/${id}/`;
+      console.log(`→ Fetching full ad hoc charge: ${instanceUrl}`);
+
+      let attempts = 0;
+      let success = false;
+      while (!success && attempts < 5) {
+        try {
+          const instanceRes = await axios.get(instanceUrl, {
+            headers: { Authorization: `Token ${TOKEN}` }
+          });
+          fullCharges.push(instanceRes.data);
+          success = true;
+        } catch (err) {
+          attempts++;
+          const isRateLimit = err.response?.status === 429;
+          const isConnReset = err.code === 'ECONNRESET';
+          if (isRateLimit || isConnReset) {
+            const wait = 2000 * attempts;
+            console.warn(
+              `⚠️ ${isRateLimit ? '429 rate limit' : 'ECONNRESET'} for id ${id}, waiting ${wait}ms before retrying (attempt ${attempts})...`
+            );
+            await delay(wait);
+          } else {
+            console.warn(`⚠️ Failed to fetch ad hoc charge instance for id ${id}:`, err.message);
+            break;
+          }
+        }
+      }
+      await delay(700);
+    }
+    return fullCharges;
+  }
 
   // Default: fetch all pages for other endpoints
   let results = [];

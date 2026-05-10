@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { OpenAI } = require('openai');
+const cache = require('../../services/cache');
 
 const API_BASE = 'https://secure.tutorcruncher.com/api';
 const API_TOKEN = process.env.TUTORCRUNCHER_API_TOKEN;
@@ -97,21 +98,25 @@ ${a.tenderDescription ? `Cover Letter: ${a.tenderDescription}` : ''}`).join('\n'
 
 // 📥 Fetch helper functions
 async function fetchClientConsultationNotes(clientId) {
+  const key = `tc:client:${clientId}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
   const { data } = await axios.get(`${API_BASE}/clients/${clientId}/`, { headers });
   const notes = data.extra_attrs?.find(attr => attr.machine_name === 'consultation_call_notes');
-  return {
-    first_name: data.first_name,
-    notes: notes?.value || ''
-  };
+  const result = { first_name: data.first_name, notes: notes?.value || '' };
+  cache.set(key, result);
+  return result;
 }
 
 async function fetchTutorInterviewNotes(tutorId) {
+  const key = `tc:contractor:${tutorId}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
   const { data } = await axios.get(`${API_BASE}/contractors/${tutorId}/`, { headers });
   const notes = data.extra_attrs?.find(attr => attr.machine_name === 'interview_notes');
-  return {
-    name: `${data.first_name} ${data.last_name}`,
-    notes: notes?.value || ''
-  };
+  const result = { name: `${data.first_name} ${data.last_name}`, notes: notes?.value || '' };
+  cache.set(key, result);
+  return result;
 }
 
 // 🚀 Main route
@@ -137,15 +142,20 @@ router.get('/', async (req, res) => {
       const service = availableServices[i];
       const label = `[${i + 1}/${availableServices.length}]`;
 
-      const serviceDetail = (await axios.get(`${API_BASE}/services/${service.id}/`, { headers })).data;
+      const serviceDetailKey = `tc:service:${service.id}`;
+      const serviceDetail = cache.get(serviceDetailKey) || (await axios.get(`${API_BASE}/services/${service.id}/`, { headers })).data;
+      cache.set(serviceDetailKey, serviceDetail);
+
       const clientId = serviceDetail.rcrs?.[0]?.paying_client;
       if (!clientId) {
         log(`⚠️ ${label} Skipping "${service.name}" – no paying client.`);
         continue;
       }
 
-      const allTenders = await axios.get(`${API_BASE}/tenders/?service=${service.id}`, { headers });
-      const pendingTenders = allTenders.data.results.filter(t => t.status === 'pending');
+      const tendersKey = `tc:tenders:${service.id}`;
+      const tendersData = cache.get(tendersKey) || (await axios.get(`${API_BASE}/tenders/?service=${service.id}`, { headers })).data;
+      cache.set(tendersKey, tendersData);
+      const pendingTenders = tendersData.results.filter(t => t.status === 'pending');
       if (!pendingTenders.length) {
         log(`⚠️ ${label} Skipping "${service.name}" – no pending applications.`);
         continue;
